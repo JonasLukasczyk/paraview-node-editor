@@ -12,13 +12,14 @@ To install the plugin:
 3. Configure the paraview build to also build the NodeEditor plugin
 4. Run ParaView and add the NodeEditor to a dockable panel (it should be listed in the same menu as the "Pipeline Browser" and the "Properties" panel).
 
-### What it already can do
+### Current Features
 1. Automatically detects the creation/modification/destruction of source/filter proxies and manages nodes accordingly.
 2. Automatically detects the creation/destruction of connections between ports and manages edges accordingly.
 3. Every node exposes all properties of the corresponding proxy via the pqProxiesWidget class.
 4. Property values are natively synchronized within other widgets, such as the ones shown in the properties panel.
 5. Proxy selection is natively synchronized with the pipeline browser.
 6. Seems to work with state files and python tracing.
+7. Nodes can be resized by collapsing properties.
 
 ### Current Limitations
 1. Embedded property widgets that show a double input field are not shown correctly (integer inputs and even the calculator work). It looks like the problem comes from the pqDoubleLineEdit class.
