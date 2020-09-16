@@ -1,0 +1,6 @@
+NAME
+  NodeEditor
+DESCRIPTION
+  NodeEditor Desc
+REQUIRES_MODULES
+  ParaView::pqComponents
