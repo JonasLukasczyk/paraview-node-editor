@@ -3,14 +3,14 @@
 ![screenshot](https://raw.githubusercontent.com/JonasLukasczyk/paraview-node-editor/master/screenshot.jpg "Screenshot of ParaView Node Editor")
 
 ### Overview
-This repository contains a node editor prototype for ParaView in the form of PlugIn. So far it is self-contained, but implementing some features (such as auto-update) will require some slight modifications of the ParaView source code. These modifications are on hold until the community reaches a consensuses on how to proceed with the architecture of the prototype.
+This repository contains a node editor plugin for ParaView. So far it is self-contained, but implementing some features (such as auto-update) will require some modifications of the ParaView source code. These modifications are on hold until the community reaches a consensuses on how to proceed with the architecture of the prototype.
 
 ### Installation
-To install the PlugIn:
+To install the plugin:
 1. Clone ParaView v5.8.0
 2. Put the NodeEditor repo into the paraview-git/Plugins folder
 3. Configure the paraview build to also build the NodeEditor plugin
-4. Run ParaView and add the NodeEditor to a dockable panel (e.g., it should be listed in the same menu as the "Pipeline Browser" and the Properties" panel).
+4. Run ParaView and add the NodeEditor to a dockable panel (it should be listed in the same menu as the "Pipeline Browser" and the "Properties" panel).
 
 ### What it already can do
 1. Automatically detects the creation/modification/destruction of source/filter proxies and manages nodes accordingly.
