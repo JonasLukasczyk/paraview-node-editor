@@ -57,12 +57,12 @@ Edge::~Edge() {
 std::string Edge::print(){
     std::stringstream ss;
     ss
-        <<this->producer->getSource()->getSMName().toStdString()
-        <<"<"<<this->producer->getSource()->getProxy()->GetGlobalID()<<">"
+        <<this->producer->getProxy()->getSMName().toStdString()
+        <<"<"<<this->producer->getProxy()->getProxy()->GetGlobalID()<<">"
         <<"["<<this->producerOutputPortIdx<<"]"
         <<" -> "
-        <<this->consumer->getSource()->getSMName().toStdString()
-        <<"<"<<this->consumer->getSource()->getProxy()->GetGlobalID()<<">"
+        <<this->consumer->getProxy()->getSMName().toStdString()
+        <<"<"<<this->consumer->getProxy()->getProxy()->GetGlobalID()<<">"
         <<"["<<this->consumerInputPortIdx<<"]"
     ;
     return ss.str();

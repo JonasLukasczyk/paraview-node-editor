@@ -18,6 +18,7 @@
 #include <pqServerManagerModel.h>
 #include <pqPipelineSource.h>
 #include <pqPipelineFilter.h>
+#include <pqDataRepresentation.h>
 #include <pqOutputPort.h>
 #include <vtkSMProxy.h>
 
@@ -49,9 +50,9 @@ int todoXOffset = -400;
 Node::Node(pqPipelineSource* source, QGraphicsItem *parent) :
     QObject(),
     QGraphicsItem(parent),
-    source(source)
+    proxy(source)
 {
-    std::cout<<"Creating Node: "<< this->print() <<std::endl;
+    std::cout<<"Creating Source/Filter Node: "<< this->print() <<std::endl;
 
     // set initial position
     this->setPos(
@@ -76,81 +77,31 @@ Node::Node(pqPipelineSource* source, QGraphicsItem *parent) :
     );
 
     // determine number of input and output ports
-    int nOutputPorts = this->source->getNumberOfOutputPorts();
+    int nOutputPorts = source->getNumberOfOutputPorts();
     int nInputPorts = 0;
-    auto sourceAsFilter = dynamic_cast<pqPipelineFilter*>(this->source);
+    auto sourceAsFilter = dynamic_cast<pqPipelineFilter*>(this->proxy);
     if(sourceAsFilter){
         nInputPorts = sourceAsFilter->getNumberOfInputPorts();
     }
     this->portContainerHeight = std::max(nOutputPorts,nInputPorts)*this->portHeight;
 
-    // create label
-    {
-        auto label = new QGraphicsTextItem("", this);
-        label->setPos(
-            0,
-            -this->portContainerHeight - this->labelHeight
-        );
-        label->setTextWidth(this->width);
-        label->setHtml("<h2 align='center'>"+source->getSMName()+"</h2>");
-        QObject::connect(
-            source, &pqPipelineSource::nameChanged,
-            [=](){ label->setHtml("<h2 align='center'>"+source->getSMName()+"</h2>"); }
-        );
-    }
+    this->initLabel();
 
     // create ports
     {
-        auto palette = QApplication::palette();
-        QPen pen(palette.light(), this->borderWidth);
-
-        auto addPort = [=](const int x, const int y, const QString& portLabel){
-            bool isInputPort = x<0;
-
-            auto label = new QGraphicsTextItem("", this);
-            label->setPos(
-                isInputPort
-                    ? 2*this->padding
-                    : this->width*0.5,
-                y-this->portRadius-3
-            );
-            label->setTextWidth(0.5*this->width - 2*this->padding);
-            // label->setHtml("<h4 align='right'>"+port->getPortName()+"&lt;"+port->getDataClassName()+"&gt;</h4>");
-            label->setHtml("<h4 align='"+QString(isInputPort ? "left" : "right")+"'>"+portLabel+"</h4>");
-
-            auto port = new QGraphicsEllipseItem(
-                -this->portRadius,
-                -this->portRadius,
-                2*this->portRadius,
-                2*this->portRadius,
-                this
-            );
-            port->setPos(
-                x,
-                y
-            );
-            port->setPen(pen);
-            port->setBrush( palette.dark() );
-
-            if(isInputPort)
-                this->iPorts.push_back( port );
-            else
-                this->oPorts.push_back( port );
-        };
-
         for(int i=0; i<nInputPorts; i++){
-            addPort(
-                -this->padding,
-                -this->portContainerHeight + (i+0.5)*this->portHeight,
+            this->addPort(
+                true,
+                i,
                 sourceAsFilter->getInputPortName(i)
             );
         }
 
         for(int i=0; i<nOutputPorts; i++){
-            addPort(
-                this->width + this->padding,
-                -this->portContainerHeight + (i+0.5)*this->portHeight,
-                this->source->getOutputPort(i)->getPortName()
+            this->addPort(
+                false,
+                i,
+                source->getOutputPort(i)->getPortName()
             );
         }
     }
@@ -169,7 +120,7 @@ Node::Node(pqPipelineSource* source, QGraphicsItem *parent) :
             proxiesWidget, &pqProxiesWidget::changeFinished,
             [=](){
                 std::cout<<"Property Modified: "<<this->print()<<std::endl;
-                this->source->setModifiedState(pqProxy::MODIFIED);
+                this->proxy->setModifiedState(pqProxy::MODIFIED);
             }
         );
 
@@ -182,6 +133,71 @@ Node::Node(pqPipelineSource* source, QGraphicsItem *parent) :
         graphicsProxyWidget->setWidget( this->widgetContainer );
         graphicsProxyWidget->setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed));
     }
+}
+
+int Node::initLabel(){
+    auto labelItem = new QGraphicsTextItem("", this);
+    labelItem->setPos(
+        0,
+        -this->portContainerHeight - this->labelHeight
+    );
+    labelItem->setTextWidth(this->width);
+    labelItem->setHtml("<h2 align='center'>"+this->proxy->getSMName()+"</h2>");
+
+    QObject::connect(
+        this->proxy, &pqPipelineSource::nameChanged,
+        [=](){ labelItem->setHtml("<h2 align='center'>"+this->proxy->getSMName()+"</h2>"); }
+    );
+
+    return 1;
+}
+
+void Node::mousePressEvent(QGraphicsSceneMouseEvent * event){
+    QGraphicsItem::mousePressEvent(event);
+    emit nodeClicked();
+}
+
+int Node::addPort(bool isInputPort, const int index, const QString& portLabel){
+
+    qreal x = isInputPort
+        ? -this->padding
+        : this->width + this->padding;
+    qreal y = -this->portContainerHeight + (index+0.5)*this->portHeight;
+
+    auto palette = QApplication::palette();
+    QPen pen(palette.light(), this->borderWidth);
+
+    auto label = new QGraphicsTextItem("", this);
+    label->setPos(
+        isInputPort
+            ? 2*this->padding
+            : this->width*0.5,
+        y-this->portRadius-3
+    );
+    label->setTextWidth(0.5*this->width - 2*this->padding);
+    // label->setHtml("<h4 align='right'>"+port->getPortName()+"&lt;"+port->getDataClassName()+"&gt;</h4>");
+    label->setHtml("<h4 align='"+QString(isInputPort ? "left" : "right")+"'>"+portLabel+"</h4>");
+
+    auto port = new QGraphicsEllipseItem(
+        -this->portRadius,
+        -this->portRadius,
+        2*this->portRadius,
+        2*this->portRadius,
+        this
+    );
+    port->setPos(
+        x,
+        y
+    );
+    port->setPen(pen);
+    port->setBrush( palette.dark() );
+
+    if(isInputPort)
+        this->iPorts.push_back( port );
+    else
+        this->oPorts.push_back( port );
+
+    return 1;
 }
 
 Node::~Node(){
@@ -209,8 +225,8 @@ int Node::setState(int state){
 std::string Node::print(){
     std::stringstream ss;
     ss
-        <<this->source->getSMName().toStdString()
-        <<"<"<<this->source->getProxy()->GetGlobalID()<<">"
+        <<this->proxy->getSMName().toStdString()
+        <<"<"<<this->proxy->getProxy()->GetGlobalID()<<">"
     ;
     return ss.str();
 }

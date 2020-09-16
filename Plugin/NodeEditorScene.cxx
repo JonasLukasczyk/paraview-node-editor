@@ -12,6 +12,8 @@
 #include <pqServerManagerModel.h>
 #include <pqPipelineSource.h>
 #include <pqPipelineFilter.h>
+#include <pqRepresentation.h>
+#include <pqDataRepresentation.h>
 #include <pqActiveObjects.h>
 #include <pqOutputPort.h>
 #include <pqView.h>
@@ -26,16 +28,50 @@ NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
     auto core = pqApplicationCore::instance();
     auto smm = core->getServerManagerModel();
 
-    // source creation
+    // source/filter creation
     this->connect(
         smm, &pqServerManagerModel::sourceAdded,
         this, &NodeEditorScene::createNode
     );
 
-    // source deletion
+    // source/filter deletion
     this->connect(
         smm, &pqServerManagerModel::sourceRemoved,
         this, &NodeEditorScene::removeNode
+    );
+
+    // representation created
+    this->connect(
+        smm, &pqServerManagerModel::representationAdded,
+        this,
+        [=](pqRepresentation* rep){
+
+            auto repAsDataRep = dynamic_cast<pqDataRepresentation*>(rep);
+            if(!repAsDataRep)
+                return 1;
+
+            auto proxy = rep->getProxy();
+            std::cout
+            <<"Representation Added: "
+            <<rep->getSMName().toStdString()
+            <<"<"<<proxy->GetGlobalID()<<">"
+            <<"["<<proxy->GetNumberOfProducers()<<"]"
+            <<"["<<proxy->GetNumberOfConsumers()<<"]"
+            <<std::endl;
+
+            for(int i=0; i<proxy->GetNumberOfProducers(); i++){
+                auto producerProxy = proxy->GetProducerProxy(i);
+                std::cout
+                    <<"    "
+                    <<i<<": "
+                    <<producerProxy->GetXMLName()
+                    <<"("<<producerProxy->GetVTKClassName()<<")"
+                    <<"<"<<producerProxy->GetGlobalID()<<">"
+                    <<std::endl;
+            }
+
+            return 1;
+        }
     );
 
     // edge creation
@@ -91,8 +127,13 @@ int NodeEditorScene::createNode(pqPipelineSource* source){
     QObject::connect(
         nodeIt.first->second, &Node::nodeClicked,
         [=](){
+            auto proxy = nodeIt.first->second->getProxy();
+            auto proxyAsSourceProxy = dynamic_cast<pqPipelineSource*>(proxy);
+
             pqActiveObjects* activeObjects = &pqActiveObjects::instance();
-            activeObjects->setActiveSource( nodeIt.first->second->getSource() );
+
+            if(proxyAsSourceProxy)
+                activeObjects->setActiveSource( proxyAsSourceProxy );
         }
     );
 

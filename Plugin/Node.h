@@ -5,7 +5,9 @@
 #include <QGraphicsSceneMouseEvent>
 
 // forward declarations
+class pqProxy;
 class pqPipelineSource;
+class pqDataRepresentation;
 class pqServerManagerModel;
 class QWidget;
 class QGraphicsEllipseItem;
@@ -15,11 +17,20 @@ class Node : public QObject, public QGraphicsItem {
     Q_OBJECT
 
     public:
-        /// Creates a node for a pqPipelineSource element that consists of
+        /// Creates a node for a pqPipelineSource that consists of
         /// * an encapsulating rectangle
         /// * input and output ports
-        /// * a widgetContainer for properties (in the future also display)
+        /// * a widgetContainer for properties
         Node(pqPipelineSource* source, QGraphicsItem *parent = nullptr);
+
+        /// Creates a node for a pqDataRepresentation that consists of
+        /// * an encapsulating rectangle
+        /// * one input port linked to a filter/source
+        /// * one output port linked to a view
+        /// * a widgetContainer for properties
+        Node(pqDataRepresentation* representation, QGraphicsItem *parent = nullptr);
+
+        /// Destructor
         ~Node();
 
         /// Delete copy constructor.
@@ -27,10 +38,9 @@ class Node : public QObject, public QGraphicsItem {
         /// Delete copy constructor.
         Node& operator=(const Node&) =delete;
 
-
-        /// Get corresponding pipeline source of the node.
-        pqPipelineSource* getSource(){
-            return this->source;
+        /// Get corresponding pqProxy of the node.
+        pqProxy* getProxy(){
+            return this->proxy;
         }
 
         /// Get input ports of the node.
@@ -54,24 +64,26 @@ class Node : public QObject, public QGraphicsItem {
         /// Print node information.
         std::string print();
 
+        // sets the state of the node (0:normal, 1: selected)
+        int setState(int state);
+
     signals:
         void nodeMoved();
         void nodeClicked();
 
     protected:
+        int initLabel();
+
         QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
         void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
         QRectF boundingRect() const override;
 
-        int setState(int state);
+        int addPort(bool isInputPort, const int index, const QString& portLabel);
 
-        void mousePressEvent(QGraphicsSceneMouseEvent * event){
-            QGraphicsItem::mousePressEvent(event);
-            emit nodeClicked();
-        }
+        void mousePressEvent(QGraphicsSceneMouseEvent * event);
 
     private:
-        pqPipelineSource* source;
+        pqProxy* proxy;
         QWidget* widgetContainer;
 
         std::vector<QGraphicsEllipseItem*> iPorts;
