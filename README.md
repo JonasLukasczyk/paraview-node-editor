@@ -26,3 +26,4 @@ To install the plugin:
 3. Only creates nodes for source/filter proxies.
 4. Can not be used to control the visibility of source/filter proxies in a view.
 5. Display properties are not shown in the nodes.
+6. The pipeline update logic evolves around the apply-button of the default Properties panel, so although proxies are correctly marked as modified, one still has to interact with the properties panel to trigger a pipeline update.
