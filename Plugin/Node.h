@@ -6,6 +6,9 @@
 
 // forward declarations
 class pqProxy;
+class pqProxyWidget;
+class pqProxiesWidget;
+class pqView;
 class pqPipelineSource;
 class pqDataRepresentation;
 class pqServerManagerModel;
@@ -17,18 +20,18 @@ class Node : public QObject, public QGraphicsItem {
     Q_OBJECT
 
     public:
+
+        Node(pqProxy* proxy, QGraphicsItem *parent = nullptr);
+
         /// Creates a node for a pqPipelineSource that consists of
         /// * an encapsulating rectangle
         /// * input and output ports
         /// * a widgetContainer for properties
         Node(pqPipelineSource* source, QGraphicsItem *parent = nullptr);
 
-        /// Creates a node for a pqDataRepresentation that consists of
-        /// * an encapsulating rectangle
-        /// * one input port linked to a filter/source
-        /// * one output port linked to a view
-        /// * a widgetContainer for properties
-        Node(pqDataRepresentation* representation, QGraphicsItem *parent = nullptr);
+        /// TODO
+        Node(pqView* view, QGraphicsItem *parent = nullptr);
+
 
         /// Destructor
         ~Node();
@@ -61,6 +64,9 @@ class Node : public QObject, public QGraphicsItem {
         /// Update the size of the node to fit its contents.
         int updateSize();
 
+        /// TODO
+        int advanceVerbosity();
+
         /// Print node information.
         std::string print();
 
@@ -72,7 +78,6 @@ class Node : public QObject, public QGraphicsItem {
         void nodeClicked();
 
     protected:
-        int initLabel();
 
         QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
         void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
@@ -84,14 +89,17 @@ class Node : public QObject, public QGraphicsItem {
 
     private:
         pqProxy* proxy;
+        // pqProxiesWidget* proxyProperties;
+        pqProxyWidget* proxyProperties;
         QWidget* widgetContainer;
 
         std::vector<QGraphicsEllipseItem*> iPorts;
         std::vector<QGraphicsEllipseItem*> oPorts;
 
         int state{0}; // 0: normal, 1: selected
+        int verbosity{0}; // 0: empty, 1: non-advanced, 2: advanced
 
-        int labelHeight{35};
+        int labelHeight{25};
         int padding{4};
         int borderWidth{4};
         int width{300};

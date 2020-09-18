@@ -14,8 +14,11 @@
 #include <QGraphicsEllipseItem>
 
 // paraview/vtk includes
+#include <pqProxyWidget.h>
+
 #include <pqProxiesWidget.h>
 #include <pqServerManagerModel.h>
+#include <pqView.h>
 #include <pqPipelineSource.h>
 #include <pqPipelineFilter.h>
 #include <pqDataRepresentation.h>
@@ -32,7 +35,7 @@
 class ResizeInterceptor : public QObject {
     public:
         Node* node;
-        ResizeInterceptor(Node* n) : QObject(n->getWidgetContainer()){
+        ResizeInterceptor(Node* n) : QObject(n){
             this->node = n;
         }
         bool eventFilter(QObject *object, QEvent *event){
@@ -42,23 +45,48 @@ class ResizeInterceptor : public QObject {
         }
 };
 
+// TODO: find better way to do this
+class ClickInterceptor : public QObject {
+    public:
+        Node* node;
+        ClickInterceptor(Node* n) : QObject(n){
+            this->node = n;
+        }
+        bool eventFilter(QObject *object, QEvent *event){
+            if(
+                event->type()==QEvent::GraphicsSceneMousePress
+                && ((QGraphicsSceneMouseEvent*) event)->button()==2
+            )
+                this->node->advanceVerbosity();
+            return false;
+        }
+};
+
+int Node::advanceVerbosity(){
+    this->verbosity++;
+    if(this->verbosity>2)
+        this->verbosity=0;
+
+    if(this->verbosity==0)
+        this->proxyProperties->filterWidgets(false, "%%%%%%%%%%%%%%");
+    else if(this->verbosity==1)
+        this->proxyProperties->filterWidgets(false);
+    else
+        this->proxyProperties->filterWidgets(true);
+
+    return 1;
+}
 
 // TODO: this variable is currently used to position nodes by creation in a line
 // In the future this will be replaced with a layout algorithm
 int todoXOffset = -400;
 
-Node::Node(pqPipelineSource* source, QGraphicsItem *parent) :
+Node::Node(pqProxy* proxy, QGraphicsItem *parent) :
     QObject(),
     QGraphicsItem(parent),
-    proxy(source)
+    proxy(proxy)
 {
-    std::cout<<"Creating Source/Filter Node: "<< this->print() <<std::endl;
-
-    // set initial position
-    this->setPos(
-        todoXOffset+=400,
-        0
-    );
+    std::cout<<"Creating Node: "<< this->print() <<std::endl;
 
     // set options
     this->setFlag(ItemIsMovable);
@@ -66,90 +94,132 @@ Node::Node(pqPipelineSource* source, QGraphicsItem *parent) :
     this->setCacheMode(DeviceCoordinateCache);
     this->setZValue(1);
 
-    // create a widget container for property and display widgets
-    this->widgetContainer = new QWidget;
-    this->widgetContainer->setMinimumWidth(this->width);
-    this->widgetContainer->setMaximumWidth(this->width);
-
-    // install resize event filter
-    this->widgetContainer->installEventFilter(
-        new ResizeInterceptor(this)
+    // set initial position
+    this->setPos(
+        todoXOffset+=400,
+        0
     );
 
-    // determine number of input and output ports
-    int nOutputPorts = source->getNumberOfOutputPorts();
-    int nInputPorts = 0;
-    auto sourceAsFilter = dynamic_cast<pqPipelineFilter*>(this->proxy);
-    if(sourceAsFilter){
-        nInputPorts = sourceAsFilter->getNumberOfInputPorts();
-    }
-    this->portContainerHeight = std::max(nOutputPorts,nInputPorts)*this->portHeight;
+    // determine port height
+    auto proxyAsView = dynamic_cast<pqView*>(proxy);
+    auto proxyAsFilter = dynamic_cast<pqPipelineFilter*>(proxy);
+    auto proxyAsSource = dynamic_cast<pqPipelineSource*>(proxy);
 
-    this->initLabel();
-
-    // create ports
-    {
-        for(int i=0; i<nInputPorts; i++){
-            this->addPort(
-                true,
-                i,
-                sourceAsFilter->getInputPortName(i)
-            );
-        }
-
-        for(int i=0; i<nOutputPorts; i++){
-            this->addPort(
-                false,
-                i,
-                source->getOutputPort(i)->getPortName()
-            );
-        }
+    if(proxyAsView){
+        this->portContainerHeight = this->portHeight; // room for one port
+    } else if (proxyAsFilter){
+        this->portContainerHeight = std::max(
+            proxyAsFilter->getNumberOfInputPorts(),
+            proxyAsFilter->getNumberOfOutputPorts()
+        )*this->portHeight;
+    } else if (proxyAsSource){
+        this->portContainerHeight = proxyAsSource->getNumberOfOutputPorts()*this->portHeight;
     }
 
-    // create property widgets (in the future also display widgets)
+    // create a widget container for property and display widgets
     {
-        auto proxiesWidget = new pqProxiesWidget;
-        proxiesWidget->addProxy( source->getProxy(), "Properties" );
-        proxiesWidget->updateLayout();
-        proxiesWidget->filterWidgets(true);
+        this->widgetContainer = new QWidget;
+        this->widgetContainer->setMinimumWidth(this->width);
+        this->widgetContainer->setMaximumWidth(this->width);
 
-        auto containerLayout = new QVBoxLayout;
-        containerLayout->addWidget(proxiesWidget);
+        // install resize event filter
+        this->widgetContainer->installEventFilter(
+            new ResizeInterceptor(this)
+        );
+    }
+
+    // init label
+    {
+        auto labelItem = new QGraphicsTextItem("",this);
+        labelItem->setPos(
+            0,
+            -this->portContainerHeight - this->labelHeight
+        );
+        labelItem->setTextWidth(this->width);
+        labelItem->setHtml("<h2 align='center'>"+this->proxy->getSMName()+"</h2>");
 
         QObject::connect(
-            proxiesWidget, &pqProxiesWidget::changeFinished,
-            [=](){
-                std::cout<<"Property Modified: "<<this->print()<<std::endl;
-                this->proxy->setModifiedState(pqProxy::MODIFIED);
-            }
+            proxy, &pqPipelineSource::nameChanged,
+            this, [=](){ labelItem->setHtml("<h2 align='center'>"+proxy->getSMName()+"</h2>"); }
         );
 
-        this->widgetContainer->setLayout(containerLayout);
+        labelItem->installEventFilter(
+            new ClickInterceptor(this)
+        );
     }
 
-    // embed widget container in node
+    // initialize property widgets container
     {
+        auto containerLayout = new QVBoxLayout;
+        this->widgetContainer->setLayout(containerLayout);
+
         auto graphicsProxyWidget = new QGraphicsProxyWidget(this);
         graphicsProxyWidget->setWidget( this->widgetContainer );
         graphicsProxyWidget->setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed));
+
+        this->proxyProperties = new pqProxyWidget(this->proxy->getProxy());
+        this->proxyProperties->updatePanel();
+        containerLayout->addWidget(this->proxyProperties);
+
+        this->advanceVerbosity();
     }
 }
 
-int Node::initLabel(){
-    auto labelItem = new QGraphicsTextItem("", this);
-    labelItem->setPos(
-        0,
-        -this->portContainerHeight - this->labelHeight
-    );
-    labelItem->setTextWidth(this->width);
-    labelItem->setHtml("<h2 align='center'>"+this->proxy->getSMName()+"</h2>");
+Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
+    Node((pqProxy*)proxy, parent)
+{
+    // create ports
+    {
+        if(auto proxyAsFilter = dynamic_cast<pqPipelineFilter*>(proxy)){
+            for(int i=0; i<proxyAsFilter->getNumberOfInputPorts(); i++){
+                this->addPort(
+                    true,
+                    i,
+                    proxyAsFilter->getInputPortName(i)
+                );
+            }
+        }
 
+        for(int i=0; i<proxy->getNumberOfOutputPorts(); i++){
+            this->addPort(
+                false,
+                i,
+                proxy->getOutputPort(i)->getPortName()
+            );
+        }
+    }
+
+    // create property widgets
     QObject::connect(
-        this->proxy, &pqPipelineSource::nameChanged,
-        [=](){ labelItem->setHtml("<h2 align='center'>"+this->proxy->getSMName()+"</h2>"); }
+        this->proxyProperties, &pqProxyWidget::changeFinished,
+        this, [=](){
+            std::cout<<"Property Modified: "<<this->print()<<std::endl;
+            this->proxy->setModifiedState(pqProxy::MODIFIED);
+            this->proxyProperties->apply();
+        }
+    );
+}
+
+Node::Node(pqView* proxy, QGraphicsItem *parent) :
+    Node((pqProxy*)proxy, parent)
+{
+    // create port
+    this->addPort(
+        true,
+        0,
+        "Elements"
     );
 
-    return 1;
+    // create property widgets
+    QObject::connect(
+        this->proxyProperties, &pqProxyWidget::changeFinished,
+        [=](){
+            std::cout<<"Property Modified: "<<this->print()<<std::endl;
+            this->proxy->setModifiedState(pqProxy::MODIFIED);
+            this->proxyProperties->apply();
+            ((pqView*)this->proxy)->render();
+        }
+    );
 }
 
 void Node::mousePressEvent(QGraphicsSceneMouseEvent * event){

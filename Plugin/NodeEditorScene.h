@@ -7,7 +7,9 @@
 // forward declarations
 class Node;
 class Edge;
+class pqProxy;
 class pqPipelineSource;
+class pqRepresentation;
 class pqView;
 
 /// This class extends QGraphicsScene to
@@ -21,8 +23,11 @@ class NodeEditorScene : public QGraphicsScene {
         ~NodeEditorScene();
 
     protected:
-        int createNode(pqPipelineSource* source);
-        int removeNode(pqPipelineSource* source);
+        int createNodeForSource(pqPipelineSource* proxy);
+        int createNodeForView(pqView* proxy);
+        int createNodeForRepresentation(pqRepresentation* proxy);
+        int removeNode(pqProxy* proxy);
+
         int createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort);
 
         /// Draws a grid background.
