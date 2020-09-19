@@ -18,21 +18,30 @@ class Edge : public QObject, public QGraphicsPathItem {
             int producerOutputPortIdx,
             Node* consumer,
             int consumerInputPortIdx,
+            int type = 0,
             QGraphicsItem *parent = nullptr
         );
         ~Edge();
+
+        // sets the state of the edge (0:normal edge, 1: view edge)
+        int setType(int type);
+        int getType(){return this->type;};
+
+        Node* getProducer(){return this->producer;};
+        Node* getConsumer(){return this->consumer;};
 
         /// Print edge information.
         std::string print();
 
     protected:
-        void updateEndPoints();
+        void updatePoints();
         QRectF boundingRect() const override;
         void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 
     private:
-        QPen* edgePen;
+        int type{0};
         QPointF oPoint;
+        QPointF cPoint;
         QPointF iPoint;
 
         Node* producer;

@@ -13,4 +13,7 @@ public:
   NodeEditor(const QString &title, QWidget *parent = nullptr);
   ~NodeEditor();
 
+private:
+  bool autoUpdateLayout{true};
+
 };

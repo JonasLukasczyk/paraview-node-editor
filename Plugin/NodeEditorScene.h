@@ -18,20 +18,29 @@ class pqView;
 ///   modify the scene accordingly;
 /// * manage the instances of nodes and edges;
 class NodeEditorScene : public QGraphicsScene {
+    Q_OBJECT
+
     public:
         NodeEditorScene(QObject* parent=nullptr);
         ~NodeEditorScene();
 
+        int computeLayout();
+        QRect getBoundingRect();
+
     protected:
+        Node* createNode(pqProxy* proxy);
         int createNodeForSource(pqPipelineSource* proxy);
         int createNodeForView(pqView* proxy);
-        int createNodeForRepresentation(pqRepresentation* proxy);
         int removeNode(pqProxy* proxy);
 
         int createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort);
 
         /// Draws a grid background.
         void drawBackground(QPainter *painter, const QRectF &rect);
+
+    signals:
+        void nodesModified();
+        void edgesModified();
 
     private:
         /// The node registry stores a node for each proxy (currently ony source/filter proxies).

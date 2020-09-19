@@ -70,10 +70,14 @@ class Node : public QObject, public QGraphicsItem {
         /// Print node information.
         std::string print();
 
-        // sets the state of the node (0:normal, 1: selected)
-        int setState(int state);
+        // sets the type of the node (0:normal, 1: selected filter, 2: selected view)
+        int setType(int type);
+        int getType(){return this->type;};
+
+        QRectF boundingRect() const override;
 
     signals:
+        void nodeResized();
         void nodeMoved();
         void nodeClicked();
 
@@ -81,9 +85,8 @@ class Node : public QObject, public QGraphicsItem {
 
         QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
         void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
-        QRectF boundingRect() const override;
 
-        int addPort(bool isInputPort, const int index, const QString& portLabel);
+        int addPort(int type, const int index, const QString& portLabel);
 
         void mousePressEvent(QGraphicsSceneMouseEvent * event);
 
@@ -96,14 +99,16 @@ class Node : public QObject, public QGraphicsItem {
         std::vector<QGraphicsEllipseItem*> iPorts;
         std::vector<QGraphicsEllipseItem*> oPorts;
 
-        int state{0}; // 0: normal, 1: selected
+        int type{0}; // 0: normal, 1: selected filter, 2: selected view
         int verbosity{0}; // 0: empty, 1: non-advanced, 2: advanced
 
-        int labelHeight{25};
+        int labelHeight{30};
         int padding{4};
         int borderWidth{4};
         int width{300};
-        int portHeight{30};
-        int portRadius{10};
+        // int portHeight{30};
+        // int portRadius{10};
+        int portHeight{24};
+        int portRadius{8};
         int portContainerHeight{0};
 };

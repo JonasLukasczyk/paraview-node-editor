@@ -96,7 +96,7 @@ Node::Node(pqProxy* proxy, QGraphicsItem *parent) :
 
     // set initial position
     this->setPos(
-        todoXOffset+=400,
+        todoXOffset+=350,
         0
     );
 
@@ -173,7 +173,7 @@ Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
         if(auto proxyAsFilter = dynamic_cast<pqPipelineFilter*>(proxy)){
             for(int i=0; i<proxyAsFilter->getNumberOfInputPorts(); i++){
                 this->addPort(
-                    true,
+                    0,
                     i,
                     proxyAsFilter->getInputPortName(i)
                 );
@@ -182,7 +182,7 @@ Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
 
         for(int i=0; i<proxy->getNumberOfOutputPorts(); i++){
             this->addPort(
-                false,
+                1,
                 i,
                 proxy->getOutputPort(i)->getPortName()
             );
@@ -205,7 +205,7 @@ Node::Node(pqView* proxy, QGraphicsItem *parent) :
 {
     // create port
     this->addPort(
-        true,
+        2,
         0,
         "Elements"
     );
@@ -227,26 +227,31 @@ void Node::mousePressEvent(QGraphicsSceneMouseEvent * event){
     emit nodeClicked();
 }
 
-int Node::addPort(bool isInputPort, const int index, const QString& portLabel){
+int Node::addPort(int type, const int index, const QString& portLabel){
 
-    qreal x = isInputPort
+    qreal x = type==0
         ? -this->padding
-        : this->width + this->padding;
-    qreal y = -this->portContainerHeight + (index+0.5)*this->portHeight;
+        : type==1
+            ? this->width + this->padding
+            : this->width*0.5;
+    qreal y = type==2
+        ? -this->portContainerHeight - this->labelHeight - this->padding
+        : -this->portContainerHeight + (index+0.5)*this->portHeight;
 
     auto palette = QApplication::palette();
     QPen pen(palette.light(), this->borderWidth);
 
-    auto label = new QGraphicsTextItem("", this);
-    label->setPos(
-        isInputPort
-            ? 2*this->padding
-            : this->width*0.5,
-        y-this->portRadius-3
-    );
-    label->setTextWidth(0.5*this->width - 2*this->padding);
-    // label->setHtml("<h4 align='right'>"+port->getPortName()+"&lt;"+port->getDataClassName()+"&gt;</h4>");
-    label->setHtml("<h4 align='"+QString(isInputPort ? "left" : "right")+"'>"+portLabel+"</h4>");
+    if(type!=2){
+        auto label = new QGraphicsTextItem("", this);
+        label->setPos(
+            type==0
+                ? 2*this->padding
+                : this->width*0.5,
+            y-this->portRadius-5
+        );
+        label->setTextWidth(0.5*this->width - 2*this->padding);
+        label->setHtml("<h4 align='"+QString(type==0 ? "left" : "right")+"'>"+portLabel+"</h4>");
+    }
 
     auto port = new QGraphicsEllipseItem(
         -this->portRadius,
@@ -255,17 +260,14 @@ int Node::addPort(bool isInputPort, const int index, const QString& portLabel){
         2*this->portRadius,
         this
     );
-    port->setPos(
-        x,
-        y
-    );
+    port->setPos( x, y );
     port->setPen(pen);
     port->setBrush( palette.dark() );
 
-    if(isInputPort)
-        this->iPorts.push_back( port );
-    else
+    if(type==1)
         this->oPorts.push_back( port );
+    else
+        this->iPorts.push_back( port );
 
     return 1;
 }
@@ -281,15 +283,15 @@ int Node::updateSize(){
     );
     this->prepareGeometryChange();
 
+    emit this->nodeResized();
+
     return 1;
 }
 
-int Node::setState(int state){
-    this->state = state;
-
+int Node::setType(int type){
+    this->type = type;
     this->update(this->boundingRect());
-
-    return this->state;
+    return this->type;
 }
 
 std::string Node::print(){
@@ -338,9 +340,11 @@ void Node::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
         10, 10
     );
     QPen pen(
-        this->state
-            ? palette.highlight()
-            : palette.light(),
+        this->type==0
+            ? palette.light()
+            : this->type==1
+                ? palette.highlight()
+                : QColor("#e9763d"),
         this->borderWidth
     );
 
