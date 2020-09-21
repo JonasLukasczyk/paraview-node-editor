@@ -5,49 +5,60 @@
 #include <unordered_map>
 
 // forward declarations
-class Node;
-class Edge;
 class pqProxy;
 class pqPipelineSource;
 class pqRepresentation;
 class pqView;
 
-/// This class extends QGraphicsScene to
-/// * draw a grid background;
-/// * monitor the creation/modification/destruction of proxies to automatically
-///   modify the scene accordingly;
-/// * manage the instances of nodes and edges;
-class NodeEditorScene : public QGraphicsScene {
-    Q_OBJECT
+namespace NE {
+    class Node;
+    class Edge;
+}
 
-    public:
-        NodeEditorScene(QObject* parent=nullptr);
-        ~NodeEditorScene();
+namespace NE {
 
-        int computeLayout();
-        QRect getBoundingRect();
+    /// This class extends QGraphicsScene to
+    /// * draw a grid background;
+    /// * monitor the creation/modification/destruction of proxies to automatically
+    ///   modify the scene accordingly;
+    /// * manage the instances of nodes and edges;
+    class NodeEditorScene : public QGraphicsScene {
+        Q_OBJECT
 
-    protected:
-        Node* createNode(pqProxy* proxy);
-        int createNodeForSource(pqPipelineSource* proxy);
-        int createNodeForView(pqView* proxy);
-        int removeNode(pqProxy* proxy);
+        public:
+            NodeEditorScene(QObject* parent=nullptr);
+            ~NodeEditorScene();
 
-        int createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort);
+            const std::unordered_map<int,NE::Node*>& getNodeRegistry(){
+                return this->nodeRegistry;
+            }
 
-        /// Draws a grid background.
-        void drawBackground(QPainter *painter, const QRectF &rect);
+            int computeLayout();
+            QRect getBoundingRect();
 
-    signals:
-        void nodesModified();
-        void edgesModified();
+        protected:
+            NE::Node* createNode(pqProxy* proxy);
+            int createNodeForSource(pqPipelineSource* proxy);
+            int createNodeForView(pqView* proxy);
+            int removeNode(pqProxy* proxy);
 
-    private:
-        /// The node registry stores a node for each proxy (currently ony source/filter proxies).
-        /// The key is the global identifier of the node proxy.
-        std::unordered_map<int,Node*> nodeRegistry;
+            int createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort);
 
-        /// The edge registry stores all incoming edges of a node.
-        /// The key is the global identifier of the node proxy.
-        std::unordered_map<int,std::vector<Edge*>> edgeRegistry;
-};
+            /// Draws a grid background.
+            void drawBackground(QPainter *painter, const QRectF &rect);
+
+        signals:
+            void nodesModified();
+            void edgesModified();
+
+        private:
+            /// The node registry stores a node for each proxy (currently ony source/filter proxies).
+            /// The key is the global identifier of the node proxy.
+            std::unordered_map<int,NE::Node*> nodeRegistry;
+
+            /// The edge registry stores all incoming edges of a node.
+            /// The key is the global identifier of the node proxy.
+            std::unordered_map<int,std::vector<NE::Edge*>> edgeRegistry;
+    };
+
+}

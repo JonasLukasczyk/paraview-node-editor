@@ -3,9 +3,11 @@
 // node editor includes
 #include <Node.h>
 #include <Edge.h>
+#include <Port.h>
 
 // qt includes
 #include <QPainter>
+#include <QGraphicsSceneMouseEvent>
 
 // paraview/vtk includes
 #include <pqApplicationCore.h>
@@ -18,12 +20,13 @@
 #include <pqOutputPort.h>
 #include <pqView.h>
 #include <vtkSMProxy.h>
+#include <vtkSMParaViewPipelineControllerWithRendering.h>
 
 // std includes
 #include <iostream>
 #include <sstream>
 
-NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
+NE::NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
 
     // retrieve server manager model (used for listening to proxy events)
     auto core = pqApplicationCore::instance();
@@ -60,7 +63,7 @@ NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
     );
 
     // retrieve active object manager
-    pqActiveObjects* activeObjects = &pqActiveObjects::instance();
+    auto activeObjects = &pqActiveObjects::instance();
 
     // update proxy selections
     this->connect(
@@ -69,15 +72,34 @@ NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
         [=](const pqProxySelection &selection){
             std::cout<<"selection changed"<<std::endl;
 
-            for(auto it : this->nodeRegistry)
-                if(it.second->getType()==1)
-                    it.second->setType(0);
+            // unselect all nodes
+            for(auto it : this->nodeRegistry){
+                if(!dynamic_cast<pqPipelineSource*>(it.second->getProxy()))
+                    continue;
 
+                it.second->setOutlineStyle(0);
+                for(auto oPort : it.second->getOutputPorts())
+                    oPort->setStyle(0);
+            }
+
+            // select nodes in selection
             for(auto it : selection){
-                if(auto source = dynamic_cast<pqPipelineSource*>(it))
-                    this->nodeRegistry[ source->getProxy()->GetGlobalID() ]->setType(1);
-                else if(auto port = dynamic_cast<pqOutputPort*>(it))
-                    this->nodeRegistry[ port->getSource()->getProxy()->GetGlobalID() ]->setType(1);
+                if(auto source = dynamic_cast<pqPipelineSource*>(it)){
+                    std::cout<<"    -> source"<<std::endl;
+                    auto node = this->nodeRegistry[ source->getProxy()->GetGlobalID() ];
+                    node->setOutlineStyle(1);
+
+                    auto oPorts = node->getOutputPorts();
+                    if(oPorts.size()>0)
+                        oPorts[0]->setStyle(1);
+
+                } else if(auto port = dynamic_cast<pqOutputPort*>(it)) {
+                    std::cout<<"    -> port"<<std::endl;
+                    auto node = this->nodeRegistry[ port->getSource()->getProxy()->GetGlobalID() ];
+
+                    node->setOutlineStyle(1);
+                    node->getOutputPorts()[port->getPortNumber()]->setStyle(1);
+                }
             }
 
             return 1;
@@ -91,20 +113,20 @@ NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
         [=](pqView* view){
 
             for(auto it : this->nodeRegistry)
-                if(it.second->getType()==2)
-                    it.second->setType(0);
+               if(!dynamic_cast<pqView*>(it.second->getProxy()))
+                    it.second->setOutlineStyle(0);
 
             if(!view)
                 return 1;
 
-            this->nodeRegistry[ view->getProxy()->GetGlobalID() ]->setType(2);
+            this->nodeRegistry[ view->getProxy()->GetGlobalID() ]->setOutlineStyle(2);
 
             return 1;
         }
     );
 }
 
-NodeEditorScene::~NodeEditorScene(){
+NE::NodeEditorScene::~NodeEditorScene(){
 }
 
 #if NE_ENABLE_GRAPHVIZ
@@ -112,7 +134,7 @@ NodeEditorScene::~NodeEditorScene(){
 #include <graphviz/gvc.h>
 #endif
 
-int NodeEditorScene::computeLayout(){
+int NE::NodeEditorScene::computeLayout(){
 
     std::cout<<"Computing Graph Layout"<<std::endl;
 
@@ -187,7 +209,7 @@ int NodeEditorScene::computeLayout(){
 #endif
 }
 
-QRect NodeEditorScene::getBoundingRect(){
+QRect NE::NodeEditorScene::getBoundingRect(){
     int x0 = 999999;
     int x1 = -999999;
     int y0 = 999999;
@@ -209,7 +231,7 @@ QRect NodeEditorScene::getBoundingRect(){
     return QRect(x0,y0,x1-x0,y1-y0);
 }
 
-Node* NodeEditorScene::createNode(pqProxy* proxy){
+NE::Node* NE::NodeEditorScene::createNode(pqProxy* proxy){
     std::cout
         <<"Node Added: "
         <<proxy->getSMName().toStdString()
@@ -222,10 +244,10 @@ Node* NodeEditorScene::createNode(pqProxy* proxy){
     auto nodeIt = this->nodeRegistry.insert({
         proxy->getProxy()->GetGlobalID(),
         proxyAsView
-            ? new Node(proxyAsView)
+            ? new NE::Node(proxyAsView)
             : proxyAsSource
-                ? new Node(proxyAsSource)
-                : new Node(proxy)
+                ? new NE::Node(proxyAsSource)
+                : new NE::Node(proxy)
     });
     auto node = nodeIt.first->second;
 
@@ -240,7 +262,7 @@ Node* NodeEditorScene::createNode(pqProxy* proxy){
 
     // update proxy selection
     QObject::connect(
-        node, &Node::nodeResized,
+        node, &NE::Node::nodeResized,
         [=](){ emit nodesModified(); }
     );
 
@@ -249,28 +271,89 @@ Node* NodeEditorScene::createNode(pqProxy* proxy){
     return node;
 }
 
-int NodeEditorScene::createNodeForSource(pqPipelineSource* proxy){
-
+int NE::NodeEditorScene::createNodeForSource(pqPipelineSource* proxy){
     auto node = this->createNode(proxy);
 
     // update proxy selection
     QObject::connect(
-        node, &Node::nodeClicked,
-        node, [=](){
+        node, &NE::Node::nodeClicked,
+        node, [=](QGraphicsSceneMouseEvent* event){
             auto proxy = node->getProxy();
             auto proxyAsSourceProxy = dynamic_cast<pqPipelineSource*>(proxy);
+            if(!proxyAsSourceProxy)
+                return 1;
 
-            pqActiveObjects* activeObjects = &pqActiveObjects::instance();
+            if(event->modifiers()==Qt::ShiftModifier){
+                std::cout<<"change visibility"<<std::endl;
+                auto view = pqActiveObjects::instance().activeView();
+                if(!view)
+                    return 1;
 
-            if(proxyAsSourceProxy)
-                activeObjects->setActiveSource( proxyAsSourceProxy );
+                vtkNew<vtkSMParaViewPipelineControllerWithRendering> controller;
+
+                for(int portIdx=0; portIdx<proxyAsSourceProxy->getNumberOfOutputPorts(); portIdx++){
+                    auto port = proxyAsSourceProxy->getOutputPort(portIdx);
+
+                    auto state = controller->GetVisibility(
+                        port->getSourceProxy(),
+                        port->getPortNumber(),
+                        (vtkSMViewProxy*)view->getProxy()
+                    );
+
+                    controller->SetVisibility(
+                        port->getSourceProxy(),
+                        port->getPortNumber(),
+                        (vtkSMViewProxy*)view->getProxy(),
+                        !state
+                    );
+                }
+
+            } else {
+                pqActiveObjects::instance().setActiveSource( proxyAsSourceProxy );
+            }
+
+            return 1;
+        }
+    );
+
+    // update proxy selection
+    QObject::connect(
+        node, &NE::Node::portClicked,
+        node, [=](QGraphicsSceneMouseEvent* event, int type, int idx){
+            if(type!=1)
+                return 1;
+
+            auto proxy = node->getProxy();
+            auto proxyAsSourceProxy = dynamic_cast<pqPipelineSource*>(proxy);
+            if(!proxyAsSourceProxy)
+                return 1;
+
+            auto port = proxyAsSourceProxy->getOutputPort(idx);
+            if(!port)
+                return 1;
+
+            auto activeObjects = &pqActiveObjects::instance();
+
+            if(event->modifiers()==Qt::ShiftModifier){
+                // make copy
+                pqProxySelection sel = activeObjects->selection();
+                sel.push_back( port );
+                activeObjects->setSelection(
+                    sel,
+                    port
+                );
+            } else {
+                activeObjects->setActivePort( port );
+            }
+
+            return 1;
         }
     );
 
     return 1;
 };
 
-int NodeEditorScene::createNodeForView(pqView* proxy){
+int NE::NodeEditorScene::createNodeForView(pqView* proxy){
 
     auto node = this->createNode(proxy);
 
@@ -318,8 +401,8 @@ int NodeEditorScene::createNodeForView(pqView* proxy){
 
     // update proxy selection
     QObject::connect(
-        node, &Node::nodeClicked,
-        [=](){
+        node, &NE::Node::nodeClicked,
+        [=](QGraphicsSceneMouseEvent* event){
             auto proxy = node->getProxy();
             auto proxyAsView = dynamic_cast<pqView*>(proxy);
 
@@ -333,7 +416,7 @@ int NodeEditorScene::createNodeForView(pqView* proxy){
     return 1;
 };
 
-int NodeEditorScene::removeNode(pqProxy* proxy){
+int NE::NodeEditorScene::removeNode(pqProxy* proxy){
     std::cout
         <<"Proxy Removed: "
         <<proxy->getSMName().toStdString()
@@ -359,7 +442,7 @@ int NodeEditorScene::removeNode(pqProxy* proxy){
     return 1;
 };
 
-int NodeEditorScene::createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort){
+int NE::NodeEditorScene::createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort){
     std::cout<<"Connection Added: "
         << source->getSMName().toStdString()
         <<"<"<<source->getProxy()->GetGlobalID()<<">"
@@ -429,12 +512,12 @@ int NodeEditorScene::createEdges(pqPipelineSource *source, pqPipelineSource *con
         }
     }
 
-    // emit edgesModified();
+    emit edgesModified();
 
     return 1;
 };
 
-void NodeEditorScene::drawBackground(QPainter *painter, const QRectF &rect){
+void NE::NodeEditorScene::drawBackground(QPainter *painter, const QRectF &rect){
     const int gridSize = 25;
 
     qreal left = int(rect.left()) - (int(rect.left()) % gridSize);

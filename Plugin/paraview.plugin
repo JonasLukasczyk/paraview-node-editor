@@ -2,5 +2,9 @@ NAME
   NodeEditor
 DESCRIPTION
   NodeEditor Desc
+CONDITION
+  PARAVIEW_USE_QT
 REQUIRES_MODULES
   ParaView::pqComponents
+  ParaView::pqApplicationComponents
+  ParaView::RemotingViews

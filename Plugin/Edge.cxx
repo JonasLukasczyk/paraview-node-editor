@@ -2,6 +2,7 @@
 
 // node editor includes
 #include <Node.h>
+#include <Port.h>
 #include <NodeEditorScene.h>
 
 // paraview/vtk includes
@@ -17,7 +18,7 @@
 #include <iostream>
 #include <sstream>
 
-Edge::Edge(
+NE::Edge::Edge(
     Node* producer,
     int producerOutputPortIdx,
     Node* consumer,
@@ -52,22 +53,22 @@ Edge::Edge(
         this, &Edge::updatePoints
     );
 
-    this->setZValue(3);
+    this->setZValue(type>0 ? 3 : 2);
 
     this->updatePoints();
 }
 
-Edge::~Edge() {
+NE::Edge::~Edge() {
     std::cout << "Deleting Edge: " << this->print() << std::endl;
 }
 
-int Edge::setType(int type){
+int NE::Edge::setType(int type){
     this->type = type;
     this->update(this->boundingRect());
     return this->type;
 }
 
-std::string Edge::print(){
+std::string NE::Edge::print(){
     std::stringstream ss;
     ss
         <<this->producer->getProxy()->getSMName().toStdString()
@@ -81,7 +82,7 @@ std::string Edge::print(){
     return ss.str();
 }
 
-QRectF Edge::boundingRect() const {
+QRectF NE::Edge::boundingRect() const {
     qreal x0 = std::min(this->oPoint.x(),std::min(this->cPoint.x(), this->iPoint.x()));
     qreal y0 = std::min(this->oPoint.y(),std::min(this->cPoint.y(), this->iPoint.y()));
     qreal x1 = std::max(this->oPoint.x(),std::max(this->cPoint.x(), this->iPoint.x()));
@@ -92,10 +93,10 @@ QRectF Edge::boundingRect() const {
         .adjusted(-extra, -extra, extra, extra);
 }
 
-void Edge::updatePoints(){
+void NE::Edge::updatePoints(){
 
-    this->oPoint = this->mapFromItem(this->producer->getOutputPorts()[this->producerOutputPortIdx], 0, 0);
-    this->iPoint = this->mapFromItem(this->consumer->getInputPorts()[this->consumerInputPortIdx], 0, 0);
+    this->oPoint = this->mapFromItem(this->producer->getOutputPorts()[this->producerOutputPortIdx]->getDisc(), 0, 0);
+    this->iPoint = this->mapFromItem(this->consumer->getInputPorts()[this->consumerInputPortIdx]->getDisc(), 0, 0);
 
     auto nProducerOutputPorts = this->producer->getOutputPorts().size();
 
@@ -105,8 +106,7 @@ void Edge::updatePoints(){
     this->prepareGeometryChange();
 }
 
-void Edge::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *){
-    painter->setRenderHints(QPainter::HighQualityAntialiasing);
+void NE::Edge::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *){
     QLineF line(this->oPoint, this->iPoint);
 
     QPainterPath path;

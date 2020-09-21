@@ -2,6 +2,13 @@
 
 #include <QDockWidget>
 
+class QAction;
+
+namespace NE {
+    class NodeEditorScene;
+    class NodeEditorView;
+}
+
 /// This is the root widget of the node editor that can be docked in ParaView.
 /// It currently only contains the node editor canvas, but in the future one
 /// can also add a toolbar.
@@ -14,6 +21,12 @@ public:
   ~NodeEditor();
 
 private:
-  bool autoUpdateLayout{true};
+  NE::NodeEditorScene* scene;
+  NE::NodeEditorView* view;
 
+  bool autoUpdateLayout{true};
+  bool autoUpdateView{true};
+  QAction* actionView;
+  QAction* actionLayout;
+  QAction* actionApply;
 };

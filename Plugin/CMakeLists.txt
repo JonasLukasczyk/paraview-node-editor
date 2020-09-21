@@ -4,6 +4,8 @@ set(interfaces)
 set(sources
   Node.h
   Node.cxx
+  Port.h
+  Port.cxx
   Edge.h
   Edge.cxx
   NodeEditor.cxx
@@ -78,15 +80,23 @@ else()
   message(STATUS "GraphViz NOT FOUND!")
 endif()
 
-target_compile_definitions(NodeEditor PUBLIC NE_ENABLE_GRAPHVIZ)
-target_include_directories(NodeEditor PUBLIC ${GRAPHVIZ_INCLUDE_DIR})
+target_compile_definitions(NodeEditor
+    PUBLIC
+        NE_ENABLE_GRAPHVIZ
+)
+
+target_include_directories(NodeEditor
+    PUBLIC
+        ${GRAPHVIZ_INCLUDE_DIR}
+)
 
 target_link_libraries(NodeEditor
-  PUBLIC
+  PRIVATE
     ${GRAPHVIZ_CDT_LIBRARY}
     ${GRAPHVIZ_GVC_LIBRARY}
     ${GRAPHVIZ_CGRAPH_LIBRARY}
     ${GRAPHVIZ_PATHPLAN_LIBRARY}
-  PRIVATE
+    ParaView::pqApplicationComponents
+    ParaView::RemotingViews
     Qt5::Widgets
 )

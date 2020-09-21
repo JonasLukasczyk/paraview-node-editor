@@ -2,19 +2,28 @@
 
 // qt includes
 #include <QWheelEvent>
+#include <QKeyEvent>
+#include <QAction>
+#include <pqDeleteReaction.h>
 
-NodeEditorView::NodeEditorView(QWidget* parent)
+NE::NodeEditorView::NodeEditorView(QWidget* parent)
     : QGraphicsView(parent){
 };
 
-NodeEditorView::NodeEditorView(QGraphicsScene* scene, QWidget* parent)
-    : QGraphicsView(scene, parent){
+NE::NodeEditorView::NodeEditorView(QGraphicsScene* scene, QWidget* parent)
+    : QGraphicsView(scene, parent)
+    , deleteAction(new QAction(this))
+{
+    // create delete reaction
+    new pqDeleteReaction(this->deleteAction);
+
+    this->setRenderHint(QPainter::Antialiasing);
 };
 
-NodeEditorView::~NodeEditorView(){
+NE::NodeEditorView::~NodeEditorView(){
 };
 
-void NodeEditorView::wheelEvent(QWheelEvent *event){
+void NE::NodeEditorView::wheelEvent(QWheelEvent *event){
     const ViewportAnchor anchor = transformationAnchor();
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     int angle = event->angleDelta().y();
@@ -27,3 +36,10 @@ void NodeEditorView::wheelEvent(QWheelEvent *event){
     scale(factor, factor);
     setTransformationAnchor(anchor);
 };
+
+void NE::NodeEditorView::keyReleaseEvent(QKeyEvent *event){
+    if(event->key()==Qt::Key_Delete)
+        this->deleteAction->trigger();
+
+    return QWidget::keyReleaseEvent(event);
+}

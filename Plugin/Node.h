@@ -2,113 +2,115 @@
 
 // QT includes
 #include <QGraphicsItem>
-#include <QGraphicsSceneMouseEvent>
 
 // forward declarations
 class pqProxy;
 class pqProxyWidget;
-class pqProxiesWidget;
 class pqView;
 class pqPipelineSource;
-class pqDataRepresentation;
-class pqServerManagerModel;
-class QWidget;
-class QGraphicsEllipseItem;
-class Edge;
+class QGraphicsSceneMouseEvent;
 
-class Node : public QObject, public QGraphicsItem {
-    Q_OBJECT
+namespace NE {
+    class Port;
+}
 
-    public:
+namespace NE {
+    class Node : public QObject, public QGraphicsItem {
+        Q_OBJECT
+        Q_INTERFACES(QGraphicsItem)
 
-        Node(pqProxy* proxy, QGraphicsItem *parent = nullptr);
+        public:
 
-        /// Creates a node for a pqPipelineSource that consists of
-        /// * an encapsulating rectangle
-        /// * input and output ports
-        /// * a widgetContainer for properties
-        Node(pqPipelineSource* source, QGraphicsItem *parent = nullptr);
+            Node(pqProxy* proxy, QGraphicsItem *parent = nullptr);
 
-        /// TODO
-        Node(pqView* view, QGraphicsItem *parent = nullptr);
+            /// Creates a node for a pqPipelineSource that consists of
+            /// * an encapsulating rectangle
+            /// * input and output ports
+            /// * a widgetContainer for properties
+            Node(pqPipelineSource* source, QGraphicsItem *parent = nullptr);
 
+            /// TODO
+            Node(pqView* view, QGraphicsItem *parent = nullptr);
 
-        /// Destructor
-        ~Node();
+            /// Destructor
+            ~Node();
 
-        /// Delete copy constructor.
-        Node(const Node&) =delete;
-        /// Delete copy constructor.
-        Node& operator=(const Node&) =delete;
+            /// Delete copy constructor.
+            Node(const Node&) =delete;
+            /// Delete copy constructor.
+            Node& operator=(const Node&) =delete;
 
-        /// Get corresponding pqProxy of the node.
-        pqProxy* getProxy(){
-            return this->proxy;
-        }
+            /// Get corresponding pqProxy of the node.
+            pqProxy* getProxy(){
+                return this->proxy;
+            }
 
-        /// Get input ports of the node.
-        std::vector<QGraphicsEllipseItem*>& getInputPorts(){
-            return this->iPorts;
-        }
+            /// Get input ports of the node.
+            std::vector<Port*>& getInputPorts(){
+                return this->iPorts;
+            }
 
-        /// Get output ports of the node.
-        std::vector<QGraphicsEllipseItem*>& getOutputPorts(){
-            return this->oPorts;
-        }
+            /// Get output ports of the node.
+            std::vector<Port*>& getOutputPorts(){
+                return this->oPorts;
+            }
 
-        /// Get widget container of the node.
-        QWidget* getWidgetContainer(){
-            return this->widgetContainer;
-        }
+            /// Get widget container of the node.
+            QWidget* getWidgetContainer(){
+                return this->widgetContainer;
+            }
 
-        /// Update the size of the node to fit its contents.
-        int updateSize();
+            /// Update the size of the node to fit its contents.
+            int updateSize();
 
-        /// TODO
-        int advanceVerbosity();
+            /// TODO
+            int advanceVerbosity();
 
-        /// Print node information.
-        std::string print();
+            /// Print node information.
+            std::string toString();
 
-        // sets the type of the node (0:normal, 1: selected filter, 2: selected view)
-        int setType(int type);
-        int getType(){return this->type;};
+            // sets the type of the node (0:normal, 1: selected filter, 2: selected view)
+            int setOutlineStyle(int style);
+            int getOutlineStyle(){return this->outlineStyle;};
 
-        QRectF boundingRect() const override;
+            int setBackgroundStyle(int style);
+            int getBackgroundStyle(){return this->backgroundStyle;};
 
-    signals:
-        void nodeResized();
-        void nodeMoved();
-        void nodeClicked();
+            QRectF boundingRect() const override;
 
-    protected:
+        signals:
+            void nodeResized();
+            void nodeMoved();
+            void nodeClicked(QGraphicsSceneMouseEvent* event);
+            void portClicked(QGraphicsSceneMouseEvent* event, int type, int idx);
 
-        QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
-        void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
+        protected:
 
-        int addPort(int type, const int index, const QString& portLabel);
+            QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 
-        void mousePressEvent(QGraphicsSceneMouseEvent * event);
+            void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 
-    private:
-        pqProxy* proxy;
-        // pqProxiesWidget* proxyProperties;
-        pqProxyWidget* proxyProperties;
-        QWidget* widgetContainer;
+            void mousePressEvent(QGraphicsSceneMouseEvent* event);
 
-        std::vector<QGraphicsEllipseItem*> iPorts;
-        std::vector<QGraphicsEllipseItem*> oPorts;
+        private:
+            pqProxy* proxy;
+            pqProxyWidget* proxyProperties;
+            QWidget* widgetContainer;
 
-        int type{0}; // 0: normal, 1: selected filter, 2: selected view
-        int verbosity{0}; // 0: empty, 1: non-advanced, 2: advanced
+            std::vector<Port*> iPorts;
+            std::vector<Port*> oPorts;
 
-        int labelHeight{30};
-        int padding{4};
-        int borderWidth{4};
-        int width{300};
-        // int portHeight{30};
-        // int portRadius{10};
-        int portHeight{24};
-        int portRadius{8};
-        int portContainerHeight{0};
-};
+            int outlineStyle{0}; // 0: normal, 1: selected filter, 2: selected view
+            int backgroundStyle{0}; // 0: normal, 1: modified
+            int verbosity{0}; // 0: empty, 1: non-advanced, 2: advanced
+
+            int width{300};
+            int padding{4};
+            int borderWidth{4};
+
+            int labelHeight{30};
+
+            int portHeight{24};
+            int portContainerHeight{0};
+    };
+}
