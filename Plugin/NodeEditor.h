@@ -5,8 +5,8 @@
 class QAction;
 
 namespace NE {
-    class NodeEditorScene;
-    class NodeEditorView;
+    class Scene;
+    class View;
 }
 
 /// This is the root widget of the node editor that can be docked in ParaView.
@@ -21,8 +21,8 @@ public:
   ~NodeEditor();
 
 private:
-  NE::NodeEditorScene* scene;
-  NE::NodeEditorView* view;
+  NE::Scene* scene;
+  NE::View* view;
 
   bool autoUpdateLayout{true};
   bool autoUpdateZoom{true};

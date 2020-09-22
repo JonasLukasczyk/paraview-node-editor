@@ -1,8 +1,8 @@
 #include <NodeEditor.h>
 
 // node editor includes
-#include <NodeEditorScene.h>
-#include <NodeEditorView.h>
+#include <Scene.h>
+#include <View.h>
 #include <Node.h>
 
 // qt includes
@@ -37,8 +37,8 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
     t_widget->setLayout(layout);
 
     // create node editor scene and view
-    this->scene = new NE::NodeEditorScene(this);
-    this->view = new NE::NodeEditorView(
+    this->scene = new NE::Scene(this);
+    this->view = new NE::View(
         this->scene,
         this
     );
@@ -140,12 +140,12 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
     };
 
     this->connect(
-        this->scene, &NE::NodeEditorScene::nodesModified,
+        this->scene, &NE::Scene::nodesModified,
         this, automaticListener
     );
 
     this->connect(
-        this->scene, &NE::NodeEditorScene::edgesModified,
+        this->scene, &NE::Scene::edgesModified,
         this, automaticListener
     );
 

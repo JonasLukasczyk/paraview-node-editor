@@ -1,4 +1,4 @@
-#include <NodeEditorScene.h>
+#include <Scene.h>
 
 // node editor includes
 #include <Node.h>
@@ -26,7 +26,7 @@
 #include <iostream>
 #include <sstream>
 
-NE::NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
+NE::Scene::Scene(QObject* parent) : QGraphicsScene(parent){
 
     // retrieve server manager model (used for listening to proxy events)
     auto core = pqApplicationCore::instance();
@@ -35,31 +35,31 @@ NE::NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
     // source/filter creation
     this->connect(
         smm, &pqServerManagerModel::sourceAdded,
-        this, &NodeEditorScene::createNodeForSource
+        this, &Scene::createNodeForSource
     );
 
     // source/filter deletion
     this->connect(
         smm, &pqServerManagerModel::sourceRemoved,
-        this, &NodeEditorScene::removeNode
+        this, &Scene::removeNode
     );
 
     // view creation
     this->connect(
         smm, &pqServerManagerModel::viewAdded,
-        this, &NodeEditorScene::createNodeForView
+        this, &Scene::createNodeForView
     );
 
     // view deletion
     this->connect(
         smm, &pqServerManagerModel::viewRemoved,
-        this, &NodeEditorScene::removeNode
+        this, &Scene::removeNode
     );
 
     // edge creation
     this->connect(
         smm, &pqServerManagerModel::connectionAdded,
-        this, &NodeEditorScene::createEdges
+        this, &Scene::createEdges
     );
 
     // retrieve active object manager
@@ -126,7 +126,7 @@ NE::NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
     );
 }
 
-NE::NodeEditorScene::~NodeEditorScene(){
+NE::Scene::~Scene(){
 }
 
 #if NE_ENABLE_GRAPHVIZ
@@ -134,7 +134,7 @@ NE::NodeEditorScene::~NodeEditorScene(){
 #include <graphviz/gvc.h>
 #endif
 
-int NE::NodeEditorScene::computeLayout(){
+int NE::Scene::computeLayout(){
 
     std::cout<<"Computing Graph Layout"<<std::endl;
 
@@ -209,7 +209,7 @@ int NE::NodeEditorScene::computeLayout(){
 #endif
 }
 
-QRect NE::NodeEditorScene::getBoundingRect(){
+QRect NE::Scene::getBoundingRect(){
     int x0 = 999999;
     int x1 = -999999;
     int y0 = 999999;
@@ -231,7 +231,7 @@ QRect NE::NodeEditorScene::getBoundingRect(){
     return QRect(x0,y0,x1-x0,y1-y0);
 }
 
-NE::Node* NE::NodeEditorScene::createNode(pqProxy* proxy){
+NE::Node* NE::Scene::createNode(pqProxy* proxy){
     std::cout
         <<"Node Added: "
         <<proxy->getSMName().toStdString()
@@ -271,7 +271,7 @@ NE::Node* NE::NodeEditorScene::createNode(pqProxy* proxy){
     return node;
 }
 
-int NE::NodeEditorScene::createNodeForSource(pqPipelineSource* proxy){
+int NE::Scene::createNodeForSource(pqPipelineSource* proxy){
     auto node = this->createNode(proxy);
 
     // update proxy selection
@@ -371,7 +371,7 @@ int NE::NodeEditorScene::createNodeForSource(pqPipelineSource* proxy){
     return 1;
 };
 
-int NE::NodeEditorScene::createNodeForView(pqView* proxy){
+int NE::Scene::createNodeForView(pqView* proxy){
 
     auto node = this->createNode(proxy);
 
@@ -434,7 +434,7 @@ int NE::NodeEditorScene::createNodeForView(pqView* proxy){
     return 1;
 };
 
-int NE::NodeEditorScene::removeNode(pqProxy* proxy){
+int NE::Scene::removeNode(pqProxy* proxy){
     std::cout
         <<"Proxy Removed: "
         <<proxy->getSMName().toStdString()
@@ -460,7 +460,7 @@ int NE::NodeEditorScene::removeNode(pqProxy* proxy){
     return 1;
 };
 
-int NE::NodeEditorScene::createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort){
+int NE::Scene::createEdges(pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort){
     std::cout<<"Connection Added: "
         << source->getSMName().toStdString()
         <<"<"<<source->getProxy()->GetGlobalID()<<">"
@@ -535,7 +535,7 @@ int NE::NodeEditorScene::createEdges(pqPipelineSource *source, pqPipelineSource 
     return 1;
 };
 
-void NE::NodeEditorScene::drawBackground(QPainter *painter, const QRectF &rect){
+void NE::Scene::drawBackground(QPainter *painter, const QRectF &rect){
     const int gridSize = 25;
 
     qreal left = int(rect.left()) - (int(rect.left()) % gridSize);

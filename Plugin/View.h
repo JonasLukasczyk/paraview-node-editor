@@ -10,12 +10,12 @@ class QAction;
 
 namespace NE {
     // This class extends QGraphicsView to rehandle MouseWheelEvents for zooming.
-    class NodeEditorView : public QGraphicsView {
+    class View : public QGraphicsView {
         public:
 
-            NodeEditorView(QWidget* parent=nullptr);
-            NodeEditorView(QGraphicsScene* scene, QWidget* parent=nullptr);
-            ~NodeEditorView();
+            View(QWidget* parent=nullptr);
+            View(QGraphicsScene* scene, QWidget* parent=nullptr);
+            ~View();
 
         protected:
             void wheelEvent(QWheelEvent *event);

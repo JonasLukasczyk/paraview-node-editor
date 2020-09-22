@@ -22,12 +22,12 @@ namespace NE {
     /// * monitor the creation/modification/destruction of proxies to automatically
     ///   modify the scene accordingly;
     /// * manage the instances of nodes and edges;
-    class NodeEditorScene : public QGraphicsScene {
+    class Scene : public QGraphicsScene {
         Q_OBJECT
 
         public:
-            NodeEditorScene(QObject* parent=nullptr);
-            ~NodeEditorScene();
+            Scene(QObject* parent=nullptr);
+            ~Scene();
 
             const std::unordered_map<int,NE::Node*>& getNodeRegistry(){
                 return this->nodeRegistry;

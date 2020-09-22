@@ -4,7 +4,7 @@
 #include <Utils.h>
 #include <Node.h>
 #include <Port.h>
-#include <NodeEditorScene.h>
+#include <Scene.h>
 
 // paraview/vtk includes
 #include <pqPipelineSource.h>

@@ -12,10 +12,10 @@ set(sources
   Edge.cxx
   NodeEditor.cxx
   NodeEditor.h
-  NodeEditorView.cxx
-  NodeEditorView.h
-  NodeEditorScene.cxx
-  NodeEditorScene.h
+  View.cxx
+  View.h
+  Scene.cxx
+  Scene.h
 )
 
 paraview_plugin_add_dock_window(
