@@ -66,9 +66,6 @@ namespace NE {
             /// TODO
             int advanceVerbosity();
 
-            /// Print node information.
-            std::string toString();
-
             // sets the type of the node (0:normal, 1: selected filter, 2: selected view)
             int setOutlineStyle(int style);
             int getOutlineStyle(){return this->outlineStyle;};

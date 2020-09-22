@@ -16,7 +16,6 @@
 #include <QApplication>
 
 // std includes
-#include <iostream>
 #include <sstream>
 
 NE::Edge::Edge(
@@ -35,7 +34,7 @@ NE::Edge::Edge(
     consumerInputPortIdx(consumerInputPortIdx),
     type(type)
 {
-    std::cout << "Creating Edge: " << this->print() << std::endl;
+    NE::log("Creating Edge: "+ this->toString());
 
     QObject::connect(
         this->producer, &Node::nodeMoved,
@@ -60,7 +59,7 @@ NE::Edge::Edge(
 }
 
 NE::Edge::~Edge() {
-    std::cout << "Deleting Edge: " << this->print() << std::endl;
+    NE::log("Deleting Edge: " + this->toString());
 }
 
 int NE::Edge::setType(int type){
@@ -69,15 +68,13 @@ int NE::Edge::setType(int type){
     return this->type;
 }
 
-std::string NE::Edge::print(){
+std::string NE::Edge::toString(){
     std::stringstream ss;
     ss
-        <<this->producer->getProxy()->getSMName().toStdString()
-        <<"<"<<this->producer->getProxy()->getProxy()->GetGlobalID()<<">"
+        <<NE::getLabel(this->producer->getProxy())
         <<"["<<this->producerOutputPortIdx<<"]"
         <<" -> "
-        <<this->consumer->getProxy()->getSMName().toStdString()
-        <<"<"<<this->consumer->getProxy()->getProxy()->GetGlobalID()<<">"
+        <<NE::getLabel(this->consumer->getProxy())<<">"
         <<"["<<this->consumerInputPortIdx<<"]"
     ;
     return ss.str();

@@ -1,8 +1,9 @@
 #pragma once
 
 #include <QObject>
-// #include <QColor>
+
 class QColor;
+class pqProxy;
 
 // forward declarations
 namespace NE {
@@ -32,6 +33,9 @@ namespace NE {
         return new Interceptor<F>(parent, functor);
     };
 
-    void log(std::string content);
+    void log(std::string content, bool force=false);
+
+    int getID(pqProxy* proxy);
+    std::string getLabel(pqProxy* proxy);
 }
 

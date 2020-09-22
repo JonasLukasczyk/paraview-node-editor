@@ -34,7 +34,7 @@ namespace NE {
             NE::Node* getConsumer(){return this->consumer;};
 
             /// Print edge information.
-            std::string print();
+            std::string toString();
 
         protected:
             void updatePoints();

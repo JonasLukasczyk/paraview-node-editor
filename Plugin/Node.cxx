@@ -27,16 +27,12 @@
 #include <pqOutputPort.h>
 #include <vtkSMProxy.h>
 
-// std includes
-#include <iostream>
-#include <sstream>
-
 NE::Node::Node(pqProxy* proxy, QGraphicsItem *parent) :
     QObject(),
     QGraphicsItem(parent),
     proxy(proxy)
 {
-    std::cout<<"Creating Node: "<< this->toString() <<std::endl;
+    NE::log("Creating Node: " + NE::getLabel(proxy));
 
     // set options
     this->setFlag(ItemIsMovable);
@@ -155,6 +151,9 @@ NE::Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
                 NE::createInterceptor(
                     oPort->getLabel(),
                     [=](QObject* object, QEvent* event){
+                        if(event->type()==QEvent::GraphicsSceneMouseDoubleClick)
+                            return true;
+
                         if(event->type()==QEvent::GraphicsSceneMousePress){
                             emit this->portClicked( (QGraphicsSceneMouseEvent*)event, 1, i );
                             return true;
@@ -171,7 +170,7 @@ NE::Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
     QObject::connect(
         this->proxyProperties, &pqProxyWidget::changeFinished,
         this, [=](){
-            std::cout<<"Property Modified: "<<this->toString()<<std::endl;
+            NE::log("Source/Filter Property Modified: "+NE::getLabel(this->proxy));
             this->proxy->setModifiedState(pqProxy::MODIFIED);
             return 1;
         }
@@ -207,7 +206,7 @@ NE::Node::Node(pqView* proxy, QGraphicsItem *parent) :
     QObject::connect(
         this->proxyProperties, &pqProxyWidget::changeFinished,
         [=](){
-            std::cout<<"Property Modified: "<<this->toString()<<std::endl;
+            NE::log("View Property Modified: "+NE::getLabel(this->proxy));
             this->proxy->setModifiedState(pqProxy::MODIFIED);
             this->proxyProperties->apply();
             ((pqView*)this->proxy)->render();
@@ -216,7 +215,7 @@ NE::Node::Node(pqView* proxy, QGraphicsItem *parent) :
 }
 
 NE::Node::~Node(){
-    std::cout<<"Deleting Node: "<< this->toString() <<std::endl;
+    NE::log("Deleting Node: "+NE::getLabel(this->proxy));
     delete this->widgetContainer;
 }
 
@@ -245,15 +244,6 @@ int NE::Node::setBackgroundStyle(int style){
     this->backgroundStyle = style;
     this->update(this->boundingRect());
     return 1;
-}
-
-std::string NE::Node::toString(){
-    std::stringstream ss;
-    ss
-        <<this->proxy->getSMName().toStdString()
-        <<"<"<<this->proxy->getProxy()->GetGlobalID()<<">"
-    ;
-    return ss.str();
 }
 
 int NE::Node::advanceVerbosity(){
