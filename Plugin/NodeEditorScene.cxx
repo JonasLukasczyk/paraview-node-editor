@@ -113,7 +113,7 @@ NE::NodeEditorScene::NodeEditorScene(QObject* parent) : QGraphicsScene(parent){
         [=](pqView* view){
 
             for(auto it : this->nodeRegistry)
-               if(!dynamic_cast<pqView*>(it.second->getProxy()))
+               if(dynamic_cast<pqView*>(it.second->getProxy()))
                     it.second->setOutlineStyle(0);
 
             if(!view)
@@ -283,6 +283,7 @@ int NE::NodeEditorScene::createNodeForSource(pqPipelineSource* proxy){
             if(!proxyAsSourceProxy)
                 return 1;
 
+            // change visibility
             if(event->modifiers()==Qt::ShiftModifier){
                 std::cout<<"change visibility"<<std::endl;
                 auto view = pqActiveObjects::instance().activeView();
@@ -308,9 +309,24 @@ int NE::NodeEditorScene::createNodeForSource(pqPipelineSource* proxy){
                     );
                 }
 
-            } else {
-                pqActiveObjects::instance().setActiveSource( proxyAsSourceProxy );
+                return 1;
             }
+
+            auto activeObjects = &pqActiveObjects::instance();
+
+            // add to selection
+            if(event->modifiers()==Qt::ControlModifier){
+                pqProxySelection sel = activeObjects->selection();
+                sel.push_back( proxy );
+                activeObjects->setSelection(
+                    sel,
+                    proxy
+                );
+                return 1;
+            }
+
+            // make active selection
+            activeObjects->setActiveSource( proxyAsSourceProxy );
 
             return 1;
         }
@@ -334,17 +350,19 @@ int NE::NodeEditorScene::createNodeForSource(pqPipelineSource* proxy){
 
             auto activeObjects = &pqActiveObjects::instance();
 
-            if(event->modifiers()==Qt::ShiftModifier){
-                // make copy
+            // add to selection
+            if(event->modifiers()==Qt::ControlModifier){
                 pqProxySelection sel = activeObjects->selection();
                 sel.push_back( port );
                 activeObjects->setSelection(
                     sel,
                     port
                 );
-            } else {
-                activeObjects->setActivePort( port );
+                return 1;
             }
+
+            // make active selection
+            activeObjects->setActivePort( port );
 
             return 1;
         }

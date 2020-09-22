@@ -1,6 +1,7 @@
 #include <Edge.h>
 
 // node editor includes
+#include <Utils.h>
 #include <Node.h>
 #include <Port.h>
 #include <NodeEditorScene.h>
@@ -133,8 +134,8 @@ void NE::Edge::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, 
         QPen(
             this->type==0
                 ? QApplication::palette().highlight().color()
-                : QColor("#e9763d"),
-            5,
+                : NE::CONSTS::COLOR_ORANGE,
+            NE::CONSTS::EDGE_WIDTH,
             this->type==0
                 ? Qt::SolidLine
                 : Qt::DashDotLine,

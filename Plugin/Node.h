@@ -46,18 +46,18 @@ namespace NE {
             }
 
             /// Get input ports of the node.
-            std::vector<Port*>& getInputPorts(){
+            std::vector<NE::Port*>& getInputPorts(){
                 return this->iPorts;
             }
 
             /// Get output ports of the node.
-            std::vector<Port*>& getOutputPorts(){
+            std::vector<NE::Port*>& getOutputPorts(){
                 return this->oPorts;
             }
 
             /// Get widget container of the node.
-            QWidget* getWidgetContainer(){
-                return this->widgetContainer;
+            pqProxyWidget* getProxyProperties(){
+                return this->proxyProperties;
             }
 
             /// Update the size of the node to fit its contents.
@@ -97,16 +97,12 @@ namespace NE {
             pqProxyWidget* proxyProperties;
             QWidget* widgetContainer;
 
-            std::vector<Port*> iPorts;
-            std::vector<Port*> oPorts;
+            std::vector<NE::Port*> iPorts;
+            std::vector<NE::Port*> oPorts;
 
             int outlineStyle{0}; // 0: normal, 1: selected filter, 2: selected view
             int backgroundStyle{0}; // 0: normal, 1: modified
             int verbosity{0}; // 0: empty, 1: non-advanced, 2: advanced
-
-            int width{300};
-            int padding{4};
-            int borderWidth{4};
 
             int labelHeight{30};
 

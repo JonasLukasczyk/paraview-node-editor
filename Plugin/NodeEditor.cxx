@@ -18,14 +18,16 @@
 
 // paraview includes
 #include <pqProxy.h>
+#include <pqProxyWidget.h>
 #include <pqPipelineSource.h>
 #include <pqView.h>
 
 NodeEditor::NodeEditor(const QString &title, QWidget *parent)
     : QDockWidget(title, parent)
-    , actionView(new QAction(this))
+    , actionZoom(new QAction(this))
     , actionLayout(new QAction(this))
     , actionApply(new QAction(this))
+    , actionReset(new QAction(this))
 {
     // create inner widget
     auto t_widget = new QWidget(this);
@@ -45,7 +47,7 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
     layout->addWidget(this->view);
 
     QObject::connect(
-        actionView,
+        actionZoom,
         &QAction::triggered,
         this,
         [=](){
@@ -82,6 +84,16 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
                 );
                 if(proxy){
                     std::cout<<"apply "<<it.second->toString()<<std::endl;
+                    it.second->getProxyProperties()->apply();
+                    proxy->setModifiedState( pqProxy::ModifiedState::UNMODIFIED );
+                }
+            }
+            for(auto it: nodes){
+                auto proxy = dynamic_cast<pqPipelineSource*>(
+                    it.second->getProxy()
+                );
+                if(proxy){
+                    std::cout<<"update pipeline "<<it.second->toString()<<std::endl;
                     proxy->updatePipeline();
                 }
             }
@@ -90,7 +102,7 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
                     it.second->getProxy()
                 );
                 if(proxy){
-                    std::cout<<"update views "<<it.second->toString()<<std::endl;
+                    std::cout<<"update view "<<it.second->toString()<<std::endl;
                     proxy->render();
                 }
             }
@@ -99,11 +111,31 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
         }
     );
 
+    QObject::connect(
+        actionReset,
+        &QAction::triggered,
+        this,
+        [=](){
+            auto& nodes = this->scene->getNodeRegistry();
+            for(auto it: nodes){
+                auto proxy = dynamic_cast<pqPipelineSource*>(
+                    it.second->getProxy()
+                );
+                if(proxy){
+                    std::cout<<"reset "<<it.second->toString()<<std::endl;
+                    it.second->getProxyProperties()->reset();
+                    proxy->setModifiedState( pqProxy::ModifiedState::UNMODIFIED );
+                }
+            }
+            return 1;
+        }
+    );
+
     auto automaticListener = [=](){
         if(this->autoUpdateLayout)
             this->actionLayout->trigger();
-        if(this->autoUpdateView)
-            this->actionView->trigger();
+        if(this->autoUpdateZoom)
+            this->actionZoom->trigger();
         return 1;
     };
 
@@ -123,23 +155,18 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
     auto toolbarLayout = new QHBoxLayout;
     toolbar->setLayout(toolbarLayout);
 
-    {
-        auto button = new QPushButton("Apply");
+    auto addButton = [=](QString label, QAction* action){
+        auto button = new QPushButton(label);
         this->connect(
             button, &QPushButton::released,
-            actionApply, &QAction::trigger
+            action, &QAction::trigger
         );
         toolbarLayout->addWidget(button);
-    }
+    };
 
-    {
-        auto button = new QPushButton("Layout");
-        this->connect(
-            button, &QPushButton::released,
-            actionLayout, &QAction::trigger
-        );
-        toolbarLayout->addWidget(button);
-    }
+    addButton("Apply", actionApply);
+    addButton("Reset", actionReset);
+    addButton("Layout", actionLayout);
 
     {
         auto checkBox = new QCheckBox("Auto Layout");
@@ -155,14 +182,7 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
         toolbarLayout->addWidget(checkBox);
     }
 
-    {
-        auto button = new QPushButton("Zoom");
-        this->connect(
-            button, &QPushButton::released,
-            actionView, &QAction::trigger
-        );
-        toolbarLayout->addWidget(button);
-    }
+    addButton("Zoom", actionZoom);
 
     {
         auto checkBox = new QCheckBox("Auto Zoom");
@@ -170,7 +190,7 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
         this->connect(
             checkBox, &QCheckBox::stateChanged,
             this, [=](int state){
-                this->autoUpdateView = state;
+                this->autoUpdateZoom = state;
                 automaticListener();
                 return 1;
             }

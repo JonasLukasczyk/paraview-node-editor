@@ -25,8 +25,9 @@ private:
   NE::NodeEditorView* view;
 
   bool autoUpdateLayout{true};
-  bool autoUpdateView{true};
-  QAction* actionView;
+  bool autoUpdateZoom{true};
+  QAction* actionZoom;
   QAction* actionLayout;
   QAction* actionApply;
+  QAction* actionReset;
 };

@@ -2,6 +2,8 @@ find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 set(interfaces)
 set(sources
+  Utils.h
+  Utils.cxx
   Node.h
   Node.cxx
   Port.h
