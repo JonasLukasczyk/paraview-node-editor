@@ -67,7 +67,7 @@ class NodeEditor : public QDockWidget {
         NE::Scene* scene;
         NE::View* view;
 
-        bool autoUpdateLayout{true};
+        bool autoUpdateLayout{false};
         QAction* actionZoom;
         QAction* actionLayout;
         QAction* actionApply;

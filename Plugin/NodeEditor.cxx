@@ -41,6 +41,10 @@
 #include <vtkSMSourceProxy.h>
 #include <vtkSMTrace.h>
 
+// for state files
+#include <vtkPVXMLElement.h>
+#include <vtkSMProxyLocator.h>
+
 // std include
 #include <iostream>
 
@@ -204,7 +208,7 @@ int NodeEditor::createToolbar(QLayout* layout){
     addButton("Layout", this->actionLayout);
     {
         auto checkBox = new QCheckBox("Auto Layout");
-        checkBox->setCheckState( Qt::Checked );
+        checkBox->setCheckState( this->autoUpdateLayout ? Qt::Checked : Qt::Unchecked );
         this->connect(
             checkBox, &QCheckBox::stateChanged,
             this, [=](int state){
@@ -220,7 +224,7 @@ int NodeEditor::createToolbar(QLayout* layout){
 
     {
         auto checkBox = new QCheckBox("Debug");
-        checkBox->setCheckState( Qt::Checked );
+        checkBox->setCheckState( NE::CONSTS::DEBUG ? Qt::Checked : Qt::Unchecked );
         this->connect(
             checkBox, &QCheckBox::stateChanged,
             this, [=](int state){
@@ -240,7 +244,23 @@ int NodeEditor::createToolbar(QLayout* layout){
 int NodeEditor::attachServerManagerListeners(){
 
     // retrieve server manager model (used for listening to proxy events)
-    auto smm = pqApplicationCore::instance()->getServerManagerModel();
+    auto appCore = pqApplicationCore::instance();
+    auto smm = appCore->getServerManagerModel();
+
+    // state loaded
+    this->connect(
+        appCore, &pqApplicationCore::aboutToLoadState,
+        this, [=](vtkPVXMLElement* root){
+            // PV BUG: does not fire
+        }
+    );
+    this->connect(
+        appCore, &pqApplicationCore::stateLoaded,
+        this, [=](vtkPVXMLElement* root, vtkSMProxyLocator* locator){
+            this->actionLayout->trigger();
+            this->actionZoom->trigger();
+        }
+    );
 
     // source/filter creation
     this->connect(
@@ -405,6 +425,20 @@ NE::Node* NodeEditor::createNode(pqProxy* proxy){
         node, &NE::Node::nodeResized,
         this->actionAutoLayout, &QAction::trigger
     );
+
+    auto activeProxy = pqActiveObjects::instance().activeSource();
+    if(activeProxy){
+       auto prevNodeIt = this->nodeRegistry.find(
+           NE::getID(activeProxy)
+       );
+       if(prevNodeIt!=this->nodeRegistry.end()){
+           auto prevPos = prevNodeIt->second->pos();
+           node->setPos(
+               prevPos.x()+350,
+               prevPos.y()
+           );
+       }
+    }
 
     this->actionAutoLayout->trigger();
 
@@ -601,11 +635,8 @@ int NodeEditor::removeNode(pqProxy* proxy){
     this->nodeRegistry.erase( proxyId );
 
     // update visibility edges
-    bool old = this->autoUpdateLayout;
-    this->autoUpdateLayout = false;
     for(auto view : smm->findItems<pqView*>())
         this->updateVisibilityEdges(view);
-    this->autoUpdateLayout = true;
 
     this->actionAutoLayout->trigger();
 

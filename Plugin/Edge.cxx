@@ -107,11 +107,14 @@ int NE::Edge::updatePoints(){
 
     this->oPoint = QGraphicsItem::mapFromItem(this->producer->getOutputPorts()[this->producerOutputPortIdx]->getDisc(), 0, 0);
     this->iPoint = QGraphicsItem::mapFromItem(this->consumer->getInputPorts()[this->consumerInputPortIdx]->getDisc(), 0, 0);
-    this->cPoint = this->mapFromItem(
-        this->producer,
-        b.bottomRight()) + QPointF((nProducerOutputPorts-this->producerOutputPortIdx)*15,
-        0
-    );
+
+    this->cPoint = this->type==0
+        ? this->oPoint
+        : this->mapFromItem(
+            this->producer,
+            b.bottomRight()) + QPointF((nProducerOutputPorts-this->producerOutputPortIdx)*15,
+            0
+        );
 
     return 1;
 }

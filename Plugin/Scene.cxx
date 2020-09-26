@@ -73,7 +73,7 @@ int NE::Scene::computeLayout(
 
         dotString += std::string("")
             + "digraph g {\n"
-            + "rankdir=LR;graph[pad=\"0.5\", ranksep=\"2\", nodesep=\""+std::to_string(maxHeight)+"\"];\n"
+            + "rankdir=LR;graph[pad=\"0\", ranksep=\"2\", nodesep=\""+std::to_string(maxHeight)+"\"];\n"
             + nodeString.str()
             + edgeString.str()
             + "\n}"
