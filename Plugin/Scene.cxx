@@ -32,74 +32,140 @@ int NE::Scene::computeLayout(
 ){
     NE::log("Computing Graph Layout");
 
-    // return 1;
-
 #if NE_ENABLE_GRAPHVIZ
 
-    std::stringstream headString;
-    std::stringstream nodeString;
-    std::stringstream edgeString;
-    std::stringstream rank0String;
-    std::stringstream rank1String;
+    // compute dot string
+    qreal maxHeight = 3.0;
+    qreal maxY = 0;
+    std::string dotString;
+    {
+        std::stringstream nodeString;
+        std::stringstream edgeString;
 
-    // head
-    headString<<"digraph g {rankdir=TB;\n";
-    rank0String<<"{rank=same ";
-    rank1String<<"{rank=same ";
+        for(auto it : nodes){
+            auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
+            if(proxyAsView)
+                continue;
 
-    for(auto it : nodes){
-        const auto& b = it.second->boundingRect();
-        nodeString
-            << NE::getID(it.second->getProxy())
-            << "["
-            << "label=\"\","
-            << "shape=box,"
-            << "width="<<(b.width()/100+2)<<","
-            << "height="<<(b.height()/100+4)<<""
-            <<"];\n";
+            const auto& b = it.second->boundingRect();
+            qreal width = b.width()/100.0;
+            qreal height = b.height()/100.0;
+            if(maxHeight<height)
+                maxHeight=height;
 
-        for(auto edge : edges[ NE::getID(it.second->getProxy()) ]){
-            edgeString
-                << NE::getID(edge->getProducer()->getProxy())
-                << " -> "
-                << NE::getID(edge->getConsumer()->getProxy())
-                << ";\n";
+            nodeString
+                << NE::getID(it.second->getProxy())
+                << "["
+                << "label=\"\","
+                << "shape=box,"
+                << "width="<<width<<","
+                << "height="<<height<<""
+                <<"];\n";
+
+            for(auto edge : edges[ NE::getID(it.second->getProxy()) ]){
+                edgeString
+                    << NE::getID(edge->getProducer()->getProxy())
+                    << " -> "
+                    << NE::getID(edge->getConsumer()->getProxy())
+                    << ";\n";
+            }
         }
 
-        auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
-        (proxyAsView ? rank1String : rank0String)<<NE::getID(it.second->getProxy())<< " ";
+        dotString += std::string("")
+            + "digraph g {\n"
+            + "rankdir=LR;graph[pad=\"0.5\", ranksep=\"2\", nodesep=\""+std::to_string(maxHeight)+"\"];\n"
+            + nodeString.str()
+            + edgeString.str()
+            + "\n}"
+        ;
+        // NE::log(dotString);
     }
-
-    auto dotString = (headString.str()+nodeString.str()+edgeString.str()+rank0String.str()+"}\n"+rank1String.str()+"}\n"+"}");
-    // NE::log(dotString);
 
     // compute layout
-    Agraph_t *G = agmemread(
-        dotString.data()
-    );
-    GVC_t *gvc = gvContext();
-    gvLayout(gvc, G, "dot");
+    {
+        Agraph_t *G = agmemread(
+            dotString.data()
+        );
+        GVC_t *gvc = gvContext();
+        gvLayout(gvc, G, "dot");
 
-    // read layout
-    for(auto it : nodes){
-        auto node = it.second;
-        if(!node)
-            continue;
-        auto proxy = it.second->getProxy();
-        if(!proxy)
-            continue;
+        // read layout
+        for(auto it : nodes){
+            auto node = it.second;
+            if(!node)
+                continue;
+            auto proxy = it.second->getProxy();
+            if(!proxy)
+                continue;
 
-        Agnode_t *n = agnode(G, const_cast<char *>(std::to_string( NE::getID(proxy) ).data()), 0);
-        if(n != nullptr) {
-            auto &coord = ND_coord(n);
-            node->setPos(coord.x, -coord.y);
+            auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
+            if(proxyAsView)
+                continue;
+
+            Agnode_t *n = agnode(G, const_cast<char *>(std::to_string( NE::getID(proxy) ).data()), 0);
+            if(n != nullptr) {
+                auto &coord = ND_coord(n);
+                node->setPos(
+                    coord.x,
+                    coord.y
+                );
+            }
         }
+
+        // free memory
+        gvFreeLayout(gvc, G);
+        agclose(G);
+        gvFreeContext(gvc);
     }
 
-    // free memory
-    gvFreeLayout(gvc, G);
-    agclose(G);
-    gvFreeContext(gvc);
+    // compute initial x position for all views
+    std::vector<std::pair<Node*,qreal>> viewXMap;
+    for(auto it : nodes){
+        auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
+        if(!proxyAsView){
+            auto pos = it.second->pos();
+            if(maxY<pos.y())
+                maxY=pos.y();
+            continue;
+        }
+
+        qreal avgX = 0;
+        auto edgesIt = edges.find( NE::getID(proxyAsView) );
+        if(edgesIt!=edges.end()){
+            int nEdges = edgesIt->second.size();
+            for(auto edge: edgesIt->second)
+                avgX += edge->getProducer()->pos().x();
+            avgX /= nEdges;
+        }
+
+        viewXMap.emplace_back(it.second,avgX);
+    }
+
+    // sort views by current x coord
+    std::sort(
+        viewXMap.begin(),
+        viewXMap.end(),
+        [](const std::pair<Node*,qreal>& a, const std::pair<Node*,qreal>& b){
+            return a.second<b.second;
+        }
+    );
+
+    // make sure all views have enough space
+    qreal lastX = -1000.0;
+    for(auto it: viewXMap){
+        qreal width = it.first->boundingRect().width();
+
+        qreal x = it.second;
+        if(lastX+width>x)
+            x = lastX+width + 10.0;
+
+        it.first->setPos(
+            x,
+            maxY + maxHeight*100.0
+        );
+
+        lastX = x;
+    }
 
     return 1;
 #else

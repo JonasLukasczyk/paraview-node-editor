@@ -624,8 +624,8 @@ int NodeEditor::setActivePortAsInput(pqPipelineSource *consumer, int idx){
     if(!port)
         return 1;
 
-    // BEGIN_UNDO_SET(QString("Change Input for %1").arg(consumerAsFilter->getSMName()));
-    // SM_SCOPED_TRACE(PropertiesModified).arg("proxy", consumerAsFilter->getProxy());
+    BEGIN_UNDO_SET(QString("Change Input for %1").arg(consumerAsFilter->getSMName()));
+    SM_SCOPED_TRACE(PropertiesModified).arg("proxy", consumerAsFilter->getProxy());
 
     std::vector<vtkSMProxy*> inputPtrs;
     std::vector<unsigned int> inputPorts;
@@ -643,7 +643,7 @@ int NodeEditor::setActivePortAsInput(pqPipelineSource *consumer, int idx){
         &inputPorts[0]
     );
 
-    // END_UNDO_SET();
+    END_UNDO_SET();
 
     consumer->setModifiedState( pqProxy::ModifiedState::MODIFIED );
 
