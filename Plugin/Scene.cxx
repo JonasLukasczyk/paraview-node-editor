@@ -30,8 +30,9 @@ int NE::Scene::computeLayout(
     std::unordered_map<int,NE::Node*>& nodes,
     std::unordered_map<int,std::vector<NE::Edge*>>& edges
 ){
-
     NE::log("Computing Graph Layout");
+
+    // return 1;
 
 #if NE_ENABLE_GRAPHVIZ
 
@@ -67,11 +68,10 @@ int NE::Scene::computeLayout(
 
         auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
         (proxyAsView ? rank1String : rank0String)<<NE::getID(it.second->getProxy())<< " ";
-
     }
 
     auto dotString = (headString.str()+nodeString.str()+edgeString.str()+rank0String.str()+"}\n"+rank1String.str()+"}\n"+"}");
-    // std::cout<<dotString<<std::endl;
+    // NE::log(dotString);
 
     // compute layout
     Agraph_t *G = agmemread(
@@ -82,10 +82,17 @@ int NE::Scene::computeLayout(
 
     // read layout
     for(auto it : nodes){
-        Agnode_t *n = agnode(G, const_cast<char *>(std::to_string( NE::getID(it.second->getProxy()) ).data()), 0);
+        auto node = it.second;
+        if(!node)
+            continue;
+        auto proxy = it.second->getProxy();
+        if(!proxy)
+            continue;
+
+        Agnode_t *n = agnode(G, const_cast<char *>(std::to_string( NE::getID(proxy) ).data()), 0);
         if(n != nullptr) {
             auto &coord = ND_coord(n);
-            it.second->setPos(coord.x, -coord.y);
+            node->setPos(coord.x, -coord.y);
         }
     }
 

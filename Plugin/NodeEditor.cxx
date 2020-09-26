@@ -32,8 +32,14 @@
 #include <pqPipelineSource.h>
 #include <pqPipelineFilter.h>
 #include <pqView.h>
+#include <pqUndoStack.h>
 
+#include <vtkSMInputProperty.h>
 #include <vtkSMParaViewPipelineControllerWithRendering.h>
+#include <vtkSMProxy.h>
+#include <vtkSMViewProxy.h>
+#include <vtkSMSourceProxy.h>
+#include <vtkSMTrace.h>
 
 // std include
 #include <iostream>
@@ -162,14 +168,12 @@ int NodeEditor::initializeActions(){
         }
     );
 
-    this->actionAutoLayoutZoom = new QAction(this);
+    this->actionAutoLayout = new QAction(this);
     QObject::connect(
-        this->actionAutoLayoutZoom, &QAction::triggered,
+        this->actionAutoLayout, &QAction::triggered,
         this->scene, [=](){
             if(this->autoUpdateLayout)
                 this->actionLayout->trigger();
-            if(this->autoUpdateZoom)
-                this->actionZoom->trigger();
             return 1;
         }
     );
@@ -191,12 +195,13 @@ int NodeEditor::createToolbar(QLayout* layout){
             action, &QAction::trigger
         );
         toolbarLayout->addWidget(button);
+        return 1;
     };
 
     addButton("Apply", this->actionApply);
     addButton("Reset", this->actionReset);
-    addButton("Layout", this->actionLayout);
 
+    addButton("Layout", this->actionLayout);
     {
         auto checkBox = new QCheckBox("Auto Layout");
         checkBox->setCheckState( Qt::Checked );
@@ -204,7 +209,7 @@ int NodeEditor::createToolbar(QLayout* layout){
             checkBox, &QCheckBox::stateChanged,
             this, [=](int state){
                 this->autoUpdateLayout = state;
-                this->actionAutoLayoutZoom->trigger();
+                this->actionAutoLayout->trigger();
                 return 1;
             }
         );
@@ -214,13 +219,12 @@ int NodeEditor::createToolbar(QLayout* layout){
     addButton("Zoom", actionZoom);
 
     {
-        auto checkBox = new QCheckBox("Auto Zoom");
+        auto checkBox = new QCheckBox("Debug");
         checkBox->setCheckState( Qt::Checked );
         this->connect(
             checkBox, &QCheckBox::stateChanged,
             this, [=](int state){
-                this->autoUpdateZoom = state;
-                this->actionAutoLayoutZoom->trigger();
+                NE::CONSTS::DEBUG = state;
                 return 1;
             }
         );
@@ -262,6 +266,14 @@ int NodeEditor::attachServerManagerListeners(){
         this, &NodeEditor::removeNode
     );
 
+    // edge removed
+    this->connect(
+        smm, &pqServerManagerModel::connectionRemoved,
+        this, [=](pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort){
+            return this->updatePipelineEdges(consumer);
+        }
+    );
+
     // edge creation
     this->connect(
         smm, &pqServerManagerModel::connectionAdded,
@@ -270,7 +282,7 @@ int NodeEditor::attachServerManagerListeners(){
         }
     );
 
-    // // retrieve active object manager
+    // retrieve active object manager
     auto activeObjects = &pqActiveObjects::instance();
 
     // update proxy selections
@@ -285,19 +297,26 @@ int NodeEditor::attachServerManagerListeners(){
         this, &NodeEditor::updateActiveView
     );
 
-    for(auto proxy : smm->findItems<pqPipelineSource*>()){
-        this->createNodeForSource(proxy);
-    }
+    // init node editor scene with exisiting views
+    {
+        for(auto proxy : smm->findItems<pqPipelineSource*>()){
+            this->createNodeForSource(proxy);
+            this->updatePipelineEdges(proxy);
+        }
 
-    for(auto proxy : smm->findItems<pqView*>()){
-        this->createNodeForView(proxy);
-        this->updateVisibilityEdges(proxy);
+        for(auto proxy : smm->findItems<pqView*>()){
+            this->createNodeForView(proxy);
+            this->updateVisibilityEdges(proxy);
+            this->updateActiveView();
+        }
     }
 
     return 1;
 }
 
 int NodeEditor::updateActiveView(){
+    NE::log("Update Active View");
+
     for(auto it : this->nodeRegistry)
         if(dynamic_cast<pqView*>(it.second->getProxy()))
             it.second->setOutlineStyle(0);
@@ -306,7 +325,11 @@ int NodeEditor::updateActiveView(){
     if(!view)
         return 1;
 
-    this->nodeRegistry[ NE::getID(view) ]->setOutlineStyle(2);
+    auto nodeIt = this->nodeRegistry.find( NE::getID(view) );
+    if(nodeIt==this->nodeRegistry.end())
+        return 1;
+
+    nodeIt->second->setOutlineStyle(2);
 
     return 1;
 }
@@ -325,24 +348,30 @@ int NodeEditor::updateActiveSourcesAndPorts(){
     }
 
     // select nodes in selection
-    const auto& selection = pqActiveObjects::instance().selection();
+    const auto selection = pqActiveObjects::instance().selection();
 
     for(auto it : selection){
         if(auto source = dynamic_cast<pqPipelineSource*>(it)){
             NE::log("    -> source/filter");
-            auto node = this->nodeRegistry[ NE::getID(source) ];
-            node->setOutlineStyle(1);
 
-            auto oPorts = node->getOutputPorts();
+            auto nodeIt = this->nodeRegistry.find( NE::getID(source) );
+            if(nodeIt==this->nodeRegistry.end())
+                continue;
+
+            nodeIt->second->setOutlineStyle(1);
+
+            auto oPorts = nodeIt->second->getOutputPorts();
             if(oPorts.size()>0)
                 oPorts[0]->setStyle(1);
 
         } else if(auto port = dynamic_cast<pqOutputPort*>(it)) {
             NE::log("    -> port");
-            auto node = this->nodeRegistry[ NE::getID(port->getSource()) ];
+            auto nodeIt = this->nodeRegistry.find( NE::getID(port->getSource()) );
+            if(nodeIt==this->nodeRegistry.end())
+                continue;
 
-            node->setOutlineStyle(1);
-            node->getOutputPorts()[port->getPortNumber()]->setStyle(1);
+            nodeIt->second->setOutlineStyle(1);
+            nodeIt->second->getOutputPorts()[port->getPortNumber()]->setStyle(1);
         }
     }
 
@@ -350,18 +379,18 @@ int NodeEditor::updateActiveSourcesAndPorts(){
 }
 
 NE::Node* NodeEditor::createNode(pqProxy* proxy){
-    auto id = NE::getID(proxy);
+    NE::log("Proxy Added: "+NE::getLabel(proxy));
 
-    NE::log("Node Added: " + NE::getLabel(proxy));
+    auto id = NE::getID(proxy);
 
     // insert new node into registry
     auto proxyAsView = dynamic_cast<pqView*>(proxy);
     auto proxyAsSource = dynamic_cast<pqPipelineSource*>(proxy);
 
     auto node = proxyAsView
-            ? new NE::Node(proxyAsView)
+            ? new NE::Node(this->scene, proxyAsView)
             : proxyAsSource
-                ? new NE::Node(proxyAsSource)
+                ? new NE::Node(this->scene, proxyAsSource)
                 : nullptr;
 
     if(!node){
@@ -372,14 +401,12 @@ NE::Node* NodeEditor::createNode(pqProxy* proxy){
     this->nodeRegistry.insert({ id, node });
     this->edgeRegistry.insert({ id, std::vector<NE::Edge*>() });
 
-    this->scene->addItem(node);
-
     QObject::connect(
         node, &NE::Node::nodeResized,
-        this->actionAutoLayoutZoom, &QAction::trigger
+        this->actionAutoLayout, &QAction::trigger
     );
 
-    this->actionAutoLayoutZoom->trigger();
+    this->actionAutoLayout->trigger();
 
     return node;
 }
@@ -388,96 +415,123 @@ int NodeEditor::createNodeForSource(pqPipelineSource* proxy){
     auto node = this->createNode(proxy);
 
     // update proxy selection
-    QObject::connect(
-        node, &NE::Node::nodeClicked,
-        node, [=](QGraphicsSceneMouseEvent* event){
-            auto proxy = node->getProxy();
-            auto proxyAsSourceProxy = dynamic_cast<pqPipelineSource*>(proxy);
-            if(!proxyAsSourceProxy)
-                return 1;
+    {
+        node->getLabel()->installEventFilter(
+            NE::createInterceptor(
+                node->getLabel(),
+                [=](QObject* object, QEvent* event){
+                    if(event->type()!=QEvent::GraphicsSceneMousePress)
+                        return false;
+                    auto eventMDC = static_cast<QGraphicsSceneMouseEvent*>(event);
 
-            auto activeObjects = &pqActiveObjects::instance();
+                    // double left click
+                    if(eventMDC->button()==1 && NE::isDoubleClick()){
+                        auto activeObjects = &pqActiveObjects::instance();
 
-            // add to selection
-            if(event->modifiers()==Qt::ControlModifier){
-                pqProxySelection sel = activeObjects->selection();
-                sel.push_back( proxy );
-                activeObjects->setSelection(
-                    sel,
-                    proxy
-                );
-                return 1;
-            }
+                        // add to selection or make single active selection
+                        if(eventMDC->modifiers()==Qt::ControlModifier){
+                            pqProxySelection sel = activeObjects->selection();
+                            sel.push_back( proxy );
+                            activeObjects->setSelection(
+                                sel,
+                                proxy
+                            );
+                        } else {
+                            activeObjects->setActiveSource( proxy );
+                        }
 
-            // make active selection
-            activeObjects->setActiveSource( proxyAsSourceProxy );
+                        return false;
+                    }
 
-            return 1;
+                    // single right click
+                    if(eventMDC->button()==2){
+                        node->advanceVerbosity();
+                        return false;
+                    }
+
+                    return false;
+                }
+            )
+        );
+    }
+
+    // input port events
+    if(auto proxyAsFilter = dynamic_cast<pqPipelineFilter*>(proxy)){
+        for(size_t idx=0; idx<node->getInputPorts().size(); idx++){
+            auto nodePort = node->getInputPorts()[idx];
+            nodePort->getLabel()->installEventFilter(
+                NE::createInterceptor(
+                    nodePort->getLabel(),
+                    [=](QObject* object, QEvent* event){
+                        if(event->type()!=QEvent::GraphicsSceneMousePress)
+                            return false;
+
+                        if(NE::isDoubleClick())
+                            this->setActivePortAsInput(proxy, idx);
+
+                        return false;
+                    }
+                )
+            );
         }
-    );
+    }
 
-    // update proxy selection
-    QObject::connect(
-        node, &NE::Node::portClicked,
-        node, [=](QGraphicsSceneMouseEvent* event, int type, int idx){
-            if(type!=1)
-                return 1;
+    // output port events
+    {
+        for(size_t idx=0; idx<node->getOutputPorts().size(); idx++){
+            auto nodePort = node->getOutputPorts()[idx];
+            nodePort->getLabel()->installEventFilter(
+                NE::createInterceptor(
+                    nodePort->getLabel(),
+                    [=](QObject* object, QEvent* event){
+                        if(event->type()!=QEvent::GraphicsSceneMousePress)
+                            return false;
 
-            auto proxy = node->getProxy();
-            auto proxyAsSourceProxy = dynamic_cast<pqPipelineSource*>(proxy);
-            if(!proxyAsSourceProxy)
-                return 1;
+                        auto eventMDC = static_cast<QGraphicsSceneMouseEvent*>(event);
 
-            auto port = proxyAsSourceProxy->getOutputPort(idx);
-            if(!port)
-                return 1;
+                        auto portProxy = proxy->getOutputPort(idx);
 
-            auto activeObjects = &pqActiveObjects::instance();
+                        // double left click
+                        if(eventMDC->button()==1 && NE::isDoubleClick()){
+                            auto activeObjects = &pqActiveObjects::instance();
 
-            // add to selection
-            if(event->modifiers()==Qt::ControlModifier){
-                pqProxySelection sel = activeObjects->selection();
-                sel.push_back( port );
-                activeObjects->setSelection(
-                    sel,
-                    port
-                );
-                return 1;
-            }
+                            // add to selection or make single active selection
+                            if(eventMDC->modifiers()==Qt::ControlModifier){
+                                pqProxySelection sel = activeObjects->selection();
+                                sel.push_back( portProxy );
+                                activeObjects->setSelection(
+                                    sel,
+                                    portProxy
+                                );
+                            } else {
+                                activeObjects->setActivePort( portProxy );
+                            }
 
-            // toggle visibility
-            if(event->modifiers()==Qt::ShiftModifier){
-                NE::log("change visibility of port "+std::to_string(idx));
-                auto view = pqActiveObjects::instance().activeView();
-                if(!view)
-                    return 1;
+                            return true;
+                        }
 
-                vtkNew<vtkSMParaViewPipelineControllerWithRendering> controller;
+                        // toggle visibility
+                        if(eventMDC->button()==1 && eventMDC->modifiers()&Qt::ShiftModifier){
+                            NE::log("Change Visibility of Port:");
+                            NE::log("    "+std::to_string(idx));
 
-                auto state = controller->GetVisibility(
-                    port->getSourceProxy(),
-                    port->getPortNumber(),
-                    (vtkSMViewProxy*)view->getProxy()
-                );
+                            // exclusive
+                            if(eventMDC->modifiers()&Qt::ControlModifier)
+                                this->hideAllInActiveView();
 
-                controller->SetVisibility(
-                    port->getSourceProxy(),
-                    port->getPortNumber(),
-                    (vtkSMViewProxy*)view->getProxy(),
-                    !state
-                );
+                            this->toggleInActiveView(
+                                proxy->getOutputPort(idx)
+                            );
 
-                view->render();
+                            return true;
+                        }
 
-                return 1;
-            }
-
-            // make active selection
-            activeObjects->setActivePort( port );
-
-            return 1;
+                        return false;
+                    }
+                )
+            );
         }
-    );
+    }
 
     return 1;
 };
@@ -493,94 +547,210 @@ int NodeEditor::createNodeForView(pqView* proxy){
         }
     );
 
-    // update proxy selection
-    QObject::connect(
-        node, &NE::Node::nodeClicked,
-        [=](QGraphicsSceneMouseEvent* event){
-            pqActiveObjects::instance().setActiveView( proxy );
-            return 1;
-        }
+    //update proxy selection
+    node->getLabel()->installEventFilter(
+        NE::createInterceptor(
+            node->getLabel(),
+            [=](QObject* object, QEvent* event){
+                if(event->type()!=QEvent::GraphicsSceneMousePress)
+                    return false;
+
+                auto eventMDC = static_cast<QGraphicsSceneMouseEvent*>(event);
+
+                // double left click
+                if(eventMDC->button()==1 && NE::isDoubleClick())
+                    pqActiveObjects::instance().setActiveView( proxy );
+
+                return false;
+            }
+        )
     );
 
     return 1;
 };
 
+int NodeEditor::removeIncomingEdges(pqProxy* proxy){
+    auto edgesIt = this->edgeRegistry.find( NE::getID(proxy) );
+    if(edgesIt!=this->edgeRegistry.end()){
+        for(int i=0; i<edgesIt->second.size(); i++)
+            if(edgesIt->second[i])
+                delete edgesIt->second[i];
+        edgesIt->second.resize(0);
+    }
+    return 1;
+}
 int NodeEditor::removeNode(pqProxy* proxy){
-    NE::log(
-        "Proxy Removed: "+
-        NE::getLabel(proxy)
-    );
+    NE::log("Proxy Removed: "+NE::getLabel(proxy));
+
+    // remove all visibility edges
+    auto smm = pqApplicationCore::instance()->getServerManagerModel();
+    for(auto view : smm->findItems<pqView*>())
+        this->removeIncomingEdges(view);
 
     // get id
     auto proxyId = NE::getID(proxy);
 
     // delete all incoming edges
-    auto edges = this->edgeRegistry[ proxyId ];
-    for(int i=0; i<edges.size(); i++)
-        delete edges[i];
-    edges.resize(0);
+    removeIncomingEdges(proxy);
     this->edgeRegistry.erase( proxyId );
 
     // delete node
-    delete this->nodeRegistry[ proxyId ];
+    auto nodeIt = this->nodeRegistry.find( proxyId );
+    if(nodeIt!=this->nodeRegistry.end())
+        delete nodeIt->second;
     this->nodeRegistry.erase( proxyId );
 
-    this->actionAutoLayoutZoom->trigger();
+    // update visibility edges
+    bool old = this->autoUpdateLayout;
+    this->autoUpdateLayout = false;
+    for(auto view : smm->findItems<pqView*>())
+        this->updateVisibilityEdges(view);
+    this->autoUpdateLayout = true;
+
+    this->actionAutoLayout->trigger();
+
+    return 1;
+};
+
+int NodeEditor::setActivePortAsInput(pqPipelineSource *consumer, int idx){
+    NE::log("Set Active Port as Input: "+NE::getLabel(consumer));
+
+    auto consumerAsFilter = dynamic_cast<pqPipelineFilter*>(consumer);
+    if(!consumerAsFilter)
+        return 1;
+
+    auto activeObjects = &pqActiveObjects::instance();
+    auto port = activeObjects->activePort();
+    if(!port)
+        return 1;
+
+    // BEGIN_UNDO_SET(QString("Change Input for %1").arg(consumerAsFilter->getSMName()));
+    // SM_SCOPED_TRACE(PropertiesModified).arg("proxy", consumerAsFilter->getProxy());
+
+    std::vector<vtkSMProxy*> inputPtrs;
+    std::vector<unsigned int> inputPorts;
+
+    inputPtrs.push_back(port->getSource()->getProxy());
+    inputPorts.push_back(port->getPortNumber());
+
+    auto iPortName = consumerAsFilter->getInputPortName(idx);
+    auto ip = vtkSMInputProperty::SafeDownCast(
+      consumerAsFilter->getProxy()->GetProperty(iPortName.toLocal8Bit().data())
+    );
+    ip->SetProxies(
+        static_cast<unsigned int>(inputPtrs.size()),
+        &inputPtrs[0],
+        &inputPorts[0]
+    );
+
+    // END_UNDO_SET();
+
+    consumer->setModifiedState( pqProxy::ModifiedState::MODIFIED );
+
+    this->actionAutoLayout->trigger();
+
+    return 1;
+};
+
+int NodeEditor::toggleInActiveView(pqOutputPort* port){
+    auto view = pqActiveObjects::instance().activeView();
+    if(!view)
+        return 0;
+
+    auto viewSMProxy = static_cast<vtkSMViewProxy*>(view->getProxy());
+    vtkNew<vtkSMParaViewPipelineControllerWithRendering> controller;
+
+    auto state = controller->GetVisibility(
+        port->getSourceProxy(),
+        port->getPortNumber(),
+        viewSMProxy
+    );
+
+    controller->SetVisibility(
+        port->getSourceProxy(),
+        port->getPortNumber(),
+        viewSMProxy,
+        !state
+    );
+
+    view->render();
+
+    return 1;
+};
+
+int NodeEditor::hideAllInActiveView(){
+    auto view = pqActiveObjects::instance().activeView();
+    if(!view)
+        return 0;
+
+    auto viewSMProxy = static_cast<vtkSMViewProxy*>(view->getProxy());
+    vtkNew<vtkSMParaViewPipelineControllerWithRendering> controller;
+
+    for(auto nodeIt : this->nodeRegistry){
+        auto proxy = static_cast<vtkSMSourceProxy*>(
+            nodeIt.second->getProxy()->getProxy()
+        );
+        for(size_t jdx=0; jdx<proxy->GetNumberOfOutputPorts(); jdx++)
+            controller->SetVisibility(
+                proxy,
+                jdx,
+                viewSMProxy,
+                false
+            );
+    }
+
+    view->render();
 
     return 1;
 };
 
 int NodeEditor::updateVisibilityEdges(pqView* proxy){
-    NE::log(
-        "Updating Visibility Pipeline Edges: "+
-        NE::getLabel(proxy)
-    );
+    NE::log("Updating Visibility Pipeline Edges: "+NE::getLabel(proxy));
 
-    auto& viewEdges = this->edgeRegistry[ NE::getID(proxy) ];
+    this->removeIncomingEdges(proxy);
 
-    // delete all incoming edges
-    for(int i=0; i<viewEdges.size(); i++)
-        delete viewEdges[i];
-    viewEdges.resize(0);
-
-    auto nodes = this->nodeRegistry;
+    auto viewEdgesIt = this->edgeRegistry.find( NE::getID(proxy) );
+    if(viewEdgesIt==this->edgeRegistry.end())
+        return 1;
 
     for(int i=0; i<proxy->getNumberOfRepresentations(); i++){
         auto rep = proxy->getRepresentation(i);
+        if(!rep)
+            continue;
 
         auto repAsDataRep = dynamic_cast<pqDataRepresentation*>(rep);
         if(!repAsDataRep || !repAsDataRep->isVisible())
             continue;
 
         auto producerPort = repAsDataRep->getOutputPortFromInput();
-        auto producerNode = nodes[ NE::getID(producerPort->getSource()) ];
+        auto producerIt = this->nodeRegistry.find( NE::getID(producerPort->getSource()) );
+        if(producerIt==this->nodeRegistry.end())
+            continue;
 
-        auto viewNode = nodes[ NE::getID(proxy) ];
+        auto viewIt = this->nodeRegistry.find( NE::getID(proxy) );
+        if(viewIt==this->nodeRegistry.end())
+            continue;
 
         // create edge
-        auto edge = new NE::Edge(
-            producerNode,
-            producerPort->getPortNumber(),
-            viewNode,
-            0,
-            1
+        viewEdgesIt->second.push_back(
+            new NE::Edge(
+                this->scene,
+                producerIt->second,
+                producerPort->getPortNumber(),
+                viewIt->second,
+                0,
+                1
+            )
         );
-        viewEdges.push_back( edge );
-
-        // add edge to scene
-        this->scene->addItem(edge);
     }
 
-    this->actionAutoLayoutZoom->trigger();
+    this->actionAutoLayout->trigger();
 
     return 1;
 }
 
 int NodeEditor::updatePipelineEdges(pqPipelineSource *consumer){
-    NE::log(
-        "Updating Incoming Pipeline Edges: "+
-        NE::getLabel(consumer)
-    );
+    NE::log("Updating Incoming Pipeline Edges: "+NE::getLabel(consumer));
 
     // check if consumer is actually a filter
     auto consumerAsFilter = dynamic_cast<pqPipelineFilter*>(consumer);
@@ -588,16 +758,19 @@ int NodeEditor::updatePipelineEdges(pqPipelineSource *consumer){
         return 1;
     }
 
-    // retrieve node of filter
-    auto consumerNode = this->nodeRegistry[ NE::getID(consumerAsFilter) ];
+    // get node of consumer
+    auto consumerIt = this->nodeRegistry.find( NE::getID(consumer) );
+    if(consumerIt==this->nodeRegistry.end()){
+        return 1;
+    }
 
-    // retrieve all input edges
-    auto& consumerInputEdges = this->edgeRegistry[ NE::getID(consumerAsFilter) ];
+    // remove all input edges
+    this->removeIncomingEdges(consumer);
 
-    // delete all incoming edges of consumer
-    for(int i=0; i<consumerInputEdges.size(); i++)
-        delete consumerInputEdges[i];
-    consumerInputEdges.resize(0);
+    auto consumerEdgesIt = this->edgeRegistry.find( NE::getID(consumer) );
+    if(consumerEdgesIt==this->edgeRegistry.end()){
+        return 1;
+    }
 
     // recreate all incoming edges
     for(int iPortIdx=0; iPortIdx<consumerAsFilter->getNumberOfInputPorts(); iPortIdx++){
@@ -605,7 +778,7 @@ int NodeEditor::updatePipelineEdges(pqPipelineSource *consumer){
         // retrieve current input port name
         auto iPortName = consumerAsFilter->getInputPortName(iPortIdx);
 
-        // get number of all output ports connected to current input port
+        // get number of all outconsumerNodeput ports connected to current input port
         int numberOfOutputPortsAtInputPort = consumerAsFilter->getNumberOfInputs( iPortName );
         for(int oPortIt=0; oPortIt<numberOfOutputPortsAtInputPort; oPortIt++){
             // get current output port connected to current input port
@@ -614,23 +787,26 @@ int NodeEditor::updatePipelineEdges(pqPipelineSource *consumer){
             // get source of current output port
             auto producer = producerPort->getSource();
 
-            // get node of source
-            auto producerNode = this->nodeRegistry[ NE::getID(producer) ];
+            // get node of producer
+            auto producerIt = this->nodeRegistry.find( NE::getID(producer) );
+            if(producerIt==this->nodeRegistry.end()){
+                continue;
+            }
 
             // create edge
-            auto edge = new NE::Edge(
-                producerNode,
-                producerPort->getPortNumber(),
-                consumerNode,
-                iPortIdx
+            consumerEdgesIt->second.push_back(
+                new NE::Edge(
+                    this->scene,
+                    producerIt->second,
+                    producerPort->getPortNumber(),
+                    consumerIt->second,
+                    iPortIdx
+                )
             );
-            consumerInputEdges.push_back( edge );
-            // add edge to scene
-            this->scene->addItem(edge);
         }
     }
 
-    this->actionAutoLayoutZoom->trigger();
+    this->actionAutoLayout->trigger();
 
     return 1;
 };

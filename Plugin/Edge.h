@@ -2,6 +2,7 @@
 
 // QT includes
 #include <QGraphicsPathItem>
+#include <QGraphicsScene>
 
 // forward declarations
 namespace NE {
@@ -17,6 +18,7 @@ namespace NE {
 
         public:
             Edge(
+                QGraphicsScene* scene,
                 NE::Node* producer,
                 int producerOutputPortIdx,
                 NE::Node* consumer,
@@ -36,12 +38,17 @@ namespace NE {
             /// Print edge information.
             std::string toString();
 
+        public slots:
+            int updatePoints();
+
         protected:
-            void updatePoints();
+
             QRectF boundingRect() const override;
             void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 
         private:
+            QGraphicsScene* scene;
+
             int type{0};
             QPointF oPoint;
             QPointF cPoint;

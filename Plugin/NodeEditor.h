@@ -13,6 +13,7 @@ class QLayout;
 class pqProxy;
 class pqPipelineSource;
 class pqRepresentation;
+class pqOutputPort;
 class pqView;
 
 namespace NE {
@@ -50,23 +51,28 @@ class NodeEditor : public QDockWidget {
         int createNodeForView(pqView* proxy);
         int removeNode(pqProxy* proxy);
 
+        int setActivePortAsInput(pqPipelineSource *consumer, int idx);
+
         int updateActiveView();
         int updateActiveSourcesAndPorts();
 
+        int removeIncomingEdges(pqProxy* proxy);
         int updatePipelineEdges(pqPipelineSource *consumer);
         int updateVisibilityEdges(pqView* proxy);
+
+        int toggleInActiveView(pqOutputPort* port);
+        int hideAllInActiveView();
 
     private:
         NE::Scene* scene;
         NE::View* view;
 
         bool autoUpdateLayout{true};
-        bool autoUpdateZoom{true};
         QAction* actionZoom;
         QAction* actionLayout;
         QAction* actionApply;
         QAction* actionReset;
-        QAction* actionAutoLayoutZoom;
+        QAction* actionAutoLayout;
 
         /// The node registry stores a node for each proxy (currently ony source/filter proxies).
         /// The key is the global identifier of the node proxy.

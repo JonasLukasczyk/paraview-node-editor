@@ -13,12 +13,14 @@
 // qt includes
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
+#include <QGraphicsScene>
 #include <QApplication>
 
 // std includes
 #include <sstream>
 
 NE::Edge::Edge(
+    QGraphicsScene* scene,
     Node* producer,
     int producerOutputPortIdx,
     Node* consumer,
@@ -28,38 +30,43 @@ NE::Edge::Edge(
 ) :
     QObject(),
     QGraphicsPathItem(parent),
+    scene(scene),
     producer(producer),
     producerOutputPortIdx(producerOutputPortIdx),
     consumer(consumer),
     consumerInputPortIdx(consumerInputPortIdx),
     type(type)
 {
-    NE::log("Creating Edge: "+ this->toString());
+    NE::log("  +Edge: "+ this->toString());
 
-    QObject::connect(
+    this->connect(
         this->producer, &Node::nodeMoved,
         this, &Edge::updatePoints
     );
-    QObject::connect(
+    this->connect(
         this->consumer, &Node::nodeMoved,
         this, &Edge::updatePoints
     );
-    QObject::connect(
+    this->connect(
         this->producer, &Node::nodeResized,
         this, &Edge::updatePoints
     );
-    QObject::connect(
+    this->connect(
         this->consumer, &Node::nodeResized,
         this, &Edge::updatePoints
     );
 
+    this->setAcceptedMouseButtons(Qt::NoButton);
     this->setZValue(type>0 ? 3 : 2);
 
     this->updatePoints();
+
+    this->scene->addItem(this);
 }
 
 NE::Edge::~Edge() {
-    NE::log("Deleting Edge: " + this->toString());
+    NE::log("  -Edge: " + this->toString());
+    this->scene->removeItem(this);
 }
 
 int NE::Edge::setType(int type){
@@ -74,7 +81,7 @@ std::string NE::Edge::toString(){
         <<NE::getLabel(this->producer->getProxy())
         <<"["<<this->producerOutputPortIdx<<"]"
         <<" -> "
-        <<NE::getLabel(this->consumer->getProxy())<<">"
+        <<NE::getLabel(this->consumer->getProxy())
         <<"["<<this->consumerInputPortIdx<<"]"
     ;
     return ss.str();
@@ -86,22 +93,27 @@ QRectF NE::Edge::boundingRect() const {
     qreal x1 = std::max(this->oPoint.x(),std::max(this->cPoint.x(), this->iPoint.x()));
     qreal y1 = std::max(this->oPoint.y(),std::max(this->cPoint.y(), this->iPoint.y()));
 
-    const qreal extra = 20.0;
+    const qreal extra = 4.0;
     return QRectF( x0,y0,x1-x0,y1-y0 )
         .adjusted(-extra, -extra, extra, extra);
 }
 
-void NE::Edge::updatePoints(){
-
-    this->oPoint = this->mapFromItem(this->producer->getOutputPorts()[this->producerOutputPortIdx]->getDisc(), 0, 0);
-    this->iPoint = this->mapFromItem(this->consumer->getInputPorts()[this->consumerInputPortIdx]->getDisc(), 0, 0);
+int NE::Edge::updatePoints(){
 
     auto nProducerOutputPorts = this->producer->getOutputPorts().size();
-
     auto b = this->producer->boundingRect();
-    this->cPoint = this->mapFromItem(this->producer, b.bottomRight()) + QPointF((nProducerOutputPorts-this->producerOutputPortIdx)*15,0);
 
     this->prepareGeometryChange();
+
+    this->oPoint = QGraphicsItem::mapFromItem(this->producer->getOutputPorts()[this->producerOutputPortIdx]->getDisc(), 0, 0);
+    this->iPoint = QGraphicsItem::mapFromItem(this->consumer->getInputPorts()[this->consumerInputPortIdx]->getDisc(), 0, 0);
+    this->cPoint = this->mapFromItem(
+        this->producer,
+        b.bottomRight()) + QPointF((nProducerOutputPorts-this->producerOutputPortIdx)*15,
+        0
+    );
+
+    return 1;
 }
 
 void NE::Edge::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *){
@@ -136,7 +148,6 @@ void NE::Edge::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, 
             this->type==0
                 ? Qt::SolidLine
                 : Qt::DashDotLine,
-                // : Qt::DashLine,
             Qt::RoundCap,
             Qt::RoundJoin
         )

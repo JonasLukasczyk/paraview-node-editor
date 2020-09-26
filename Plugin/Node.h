@@ -8,6 +8,7 @@ class pqProxy;
 class pqProxyWidget;
 class pqView;
 class pqPipelineSource;
+class QGraphicsScene;
 class QGraphicsSceneMouseEvent;
 
 namespace NE {
@@ -21,16 +22,16 @@ namespace NE {
 
         public:
 
-            Node(pqProxy* proxy, QGraphicsItem *parent = nullptr);
+            Node(QGraphicsScene* scene, pqProxy* proxy, QGraphicsItem *parent = nullptr);
 
             /// Creates a node for a pqPipelineSource that consists of
             /// * an encapsulating rectangle
             /// * input and output ports
             /// * a widgetContainer for properties
-            Node(pqPipelineSource* source, QGraphicsItem *parent = nullptr);
+            Node(QGraphicsScene* scene, pqPipelineSource* source, QGraphicsItem *parent = nullptr);
 
             /// TODO
-            Node(pqView* view, QGraphicsItem *parent = nullptr);
+            Node(QGraphicsScene* scene, pqView* view, QGraphicsItem *parent = nullptr);
 
             /// Destructor
             ~Node();
@@ -60,6 +61,11 @@ namespace NE {
                 return this->proxyProperties;
             }
 
+            /// Get widget container of the node.
+            QGraphicsTextItem* getLabel(){
+                return this->label;
+            }
+
             /// Update the size of the node to fit its contents.
             int updateSize();
 
@@ -78,8 +84,6 @@ namespace NE {
         signals:
             void nodeResized();
             void nodeMoved();
-            void nodeClicked(QGraphicsSceneMouseEvent* event);
-            void portClicked(QGraphicsSceneMouseEvent* event, int type, int idx);
 
         protected:
 
@@ -87,12 +91,12 @@ namespace NE {
 
             void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 
-            void mousePressEvent(QGraphicsSceneMouseEvent* event);
-
         private:
+            QGraphicsScene* scene;
             pqProxy* proxy;
             pqProxyWidget* proxyProperties;
             QWidget* widgetContainer;
+            QGraphicsTextItem* label;
 
             std::vector<NE::Port*> iPorts;
             std::vector<NE::Port*> oPorts;
@@ -105,5 +109,8 @@ namespace NE {
 
             int portHeight{24};
             int portContainerHeight{0};
+
+            int widgetContainerHeight{0};
+            int widgetContainerWidth{0};
     };
 }

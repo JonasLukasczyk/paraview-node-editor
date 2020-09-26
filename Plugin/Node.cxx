@@ -14,6 +14,7 @@
 #include <QPushButton>
 #include <QGraphicsProxyWidget>
 #include <QGraphicsEllipseItem>
+#include <QGraphicsScene>
 
 // paraview/vtk includes
 #include <pqProxyWidget.h>
@@ -27,12 +28,13 @@
 #include <pqOutputPort.h>
 #include <vtkSMProxy.h>
 
-NE::Node::Node(pqProxy* proxy, QGraphicsItem *parent) :
+NE::Node::Node(QGraphicsScene* scene, pqProxy* proxy, QGraphicsItem *parent) :
     QObject(),
     QGraphicsItem(parent),
+    scene(scene),
     proxy(proxy)
 {
-    NE::log("Creating Node: " + NE::getLabel(proxy));
+    NE::log("  +Node: " + NE::getLabel(proxy));
 
     // set options
     this->setFlag(ItemIsMovable);
@@ -76,32 +78,29 @@ NE::Node::Node(pqProxy* proxy, QGraphicsItem *parent) :
 
     // init label
     {
-        auto labelItem = new QGraphicsTextItem("",this);
-        labelItem->setTextWidth(NE::CONSTS::NODE_WIDTH);
-        labelItem->setHtml("<h2 align='center'>"+this->proxy->getSMName()+"</h2>");
-        labelItem->setPos(
-            0,
-            -this->portContainerHeight - this->labelHeight
-        );
+        this->label = new QGraphicsTextItem("",this);
+        this->label->setCursor( Qt::PointingHandCursor );
+
+        QFont font;
+        font.setBold(true);
+        font.setPointSize(13);
+        this->label->setFont(font);
+
+        auto nameChangeFunc = [=](){
+            this->label->setPlainText(proxy->getSMName());
+            auto br = this->label->boundingRect();
+            this->label->setPos(
+                0.5*(NE::CONSTS::NODE_WIDTH-br.width()),
+                -this->portContainerHeight - this->labelHeight
+            );
+        };
 
         QObject::connect(
             proxy, &pqPipelineSource::nameChanged,
-            this, [=](){ labelItem->setHtml("<h2 align='center'>"+proxy->getSMName()+"</h2>"); }
+            this->label, nameChangeFunc
         );
 
-        labelItem->installEventFilter(
-            NE::createInterceptor(
-                labelItem,
-                [=](QObject* object, QEvent* event){
-                    if(
-                        event->type()==QEvent::GraphicsSceneMousePress
-                        && ((QGraphicsSceneMouseEvent*) event)->button()==2
-                    )
-                        this->advanceVerbosity();
-                    return false;
-                }
-            )
-        );
+        nameChangeFunc();
     }
 
     // initialize property widgets container
@@ -118,16 +117,20 @@ NE::Node::Node(pqProxy* proxy, QGraphicsItem *parent) :
         containerLayout->addWidget(this->proxyProperties);
 
         this->advanceVerbosity();
+
+        this->updateSize();
     }
+
+    this->scene->addItem(this);
 }
 
-NE::Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
-    Node((pqProxy*)proxy, parent)
+NE::Node::Node(QGraphicsScene* scene, pqPipelineSource* proxy, QGraphicsItem *parent) :
+    Node(scene, (pqProxy*)proxy, parent)
 {
     // create ports
     {
         auto br = this->boundingRect();
-        auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH;
+        auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH + NE::CONSTS::NODE_BR_PADDING;
         br.adjust(adjust,adjust,-adjust,-adjust);
 
         if(auto proxyAsFilter = dynamic_cast<pqPipelineFilter*>(proxy)){
@@ -146,21 +149,6 @@ NE::Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
             oPort->setPos(
                 br.right(),
                 -this->portContainerHeight + (i+0.5)*this->portHeight
-            );
-            oPort->getLabel()->installEventFilter(
-                NE::createInterceptor(
-                    oPort->getLabel(),
-                    [=](QObject* object, QEvent* event){
-                        if(event->type()==QEvent::GraphicsSceneMouseDoubleClick)
-                            return true;
-
-                        if(event->type()==QEvent::GraphicsSceneMousePress){
-                            emit this->portClicked( (QGraphicsSceneMouseEvent*)event, 1, i );
-                            return true;
-                        }
-                        return false;
-                    }
-                )
             );
             this->oPorts.push_back( oPort );
         }
@@ -187,11 +175,11 @@ NE::Node::Node(pqPipelineSource* proxy, QGraphicsItem *parent) :
     );
 }
 
-NE::Node::Node(pqView* proxy, QGraphicsItem *parent) :
-    Node((pqProxy*)proxy, parent)
+NE::Node::Node(QGraphicsScene* scene, pqView* proxy, QGraphicsItem *parent) :
+    Node(scene, (pqProxy*)proxy, parent)
 {
     auto br = this->boundingRect();
-    auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH;
+    auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH + NE::CONSTS::NODE_BR_PADDING;
     br.adjust(adjust,adjust,-adjust,-adjust);
 
     // create port
@@ -205,7 +193,7 @@ NE::Node::Node(pqView* proxy, QGraphicsItem *parent) :
     // create property widgets
     QObject::connect(
         this->proxyProperties, &pqProxyWidget::changeFinished,
-        [=](){
+        this, [=](){
             NE::log("View Property Modified: "+NE::getLabel(this->proxy));
             this->proxy->setModifiedState(pqProxy::MODIFIED);
             this->proxyProperties->apply();
@@ -215,20 +203,19 @@ NE::Node::Node(pqView* proxy, QGraphicsItem *parent) :
 }
 
 NE::Node::~Node(){
-    NE::log("Deleting Node: "+NE::getLabel(this->proxy));
-    delete this->widgetContainer;
-}
-
-void NE::Node::mousePressEvent(QGraphicsSceneMouseEvent* event){
-    emit nodeClicked(event);
-    QGraphicsItem::mousePressEvent(event);
+    NE::log(" -Node: "+NE::getLabel(this->proxy));
+    this->scene->removeItem(this);
 }
 
 int NE::Node::updateSize(){
     this->widgetContainer->resize(
         this->widgetContainer->layout()->sizeHint()
     );
+
     this->prepareGeometryChange();
+
+    this->widgetContainerWidth = this->widgetContainer->width();
+    this->widgetContainerHeight = this->widgetContainer->height();
 
     emit this->nodeResized();
 
@@ -275,22 +262,29 @@ QVariant NE::Node::itemChange(GraphicsItemChange change, const QVariant &value){
 
 QRectF NE::Node::boundingRect() const {
     auto offset = NE::CONSTS::NODE_BORDER_WIDTH+NE::CONSTS::NODE_PADDING;
-
-    return QRectF(
+    auto br = QRectF(
         -offset,
         -offset - this->portContainerHeight - this->labelHeight,
-        this->widgetContainer->width()  + 2*offset,
-        this->widgetContainer->height() + 2*offset + this->portContainerHeight + this->labelHeight
+        this->widgetContainerWidth  + 2*offset,
+        this->widgetContainerHeight + 2*offset + this->portContainerHeight + this->labelHeight
     );
+    br.adjust(
+        -NE::CONSTS::NODE_BR_PADDING,
+        -NE::CONSTS::NODE_BR_PADDING,
+        NE::CONSTS::NODE_BR_PADDING,
+        NE::CONSTS::NODE_BR_PADDING
+    );
+
+    return br;
 }
 
 void NE::Node::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *){
     auto palette = QApplication::palette();
 
     QPainterPath path;
-    int border = 0.5*NE::CONSTS::NODE_BORDER_WIDTH;
+    int offset = 0.5*NE::CONSTS::NODE_BORDER_WIDTH + NE::CONSTS::NODE_BR_PADDING;
     auto br = this->boundingRect();
-    br.adjust(border,border,-border,-border);
+    br.adjust(offset,offset,-offset,-offset);
     path.addRoundedRect(br, 10, 10);
 
     QPen pen(
