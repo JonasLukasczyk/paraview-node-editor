@@ -7,24 +7,27 @@ This repository contains a node editor plugin for ParaView. So far it is self-co
 
 ### Installation
 To install the plugin:
-1. Clone ParaView v5.8.0
-2. Put the NodeEditor repo into the paraview-git/Plugins folder
-3. Configure the paraview build to also build the NodeEditor plugin
-4. Run ParaView and add the NodeEditor to a dockable panel (it should be listed in the same menu as the "Pipeline Browser" and the "Properties" panel).
+1. Build ParaView v5.8.0
+2. Build NodeEditor in seperate folder (eventually you have to explicitly set ParaView_DIR with cmake)
+3. Load the NodeEdior PlugIn in ParaView via "Tools/Manage PlugIns/Load New" and select NodeEditor.so located in paraview-node-editor/build/lib/paraview-5.8/plugins/NodeEditor
+4. Add the NodeEditor to a dockable panel (it should be listed in the same menu as the "Pipeline Browser" and the "Properties" panel).
 
 ### Current Features
-1. Automatically detects the creation/modification/destruction of source/filter proxies and manages nodes accordingly.
+1. Automatically detects the creation/modification/destruction of source/filter/view proxies and manages nodes accordingly.
 2. Automatically detects the creation/destruction of connections between ports and manages edges accordingly.
 3. Every node exposes all properties of the corresponding proxy via the pqProxiesWidget class.
 4. Property values are natively synchronized within other widgets, such as the ones shown in the properties panel.
 5. Proxy selection is natively synchronized with the pipeline browser.
 6. Seems to work with state files and python tracing.
-7. Nodes can be resized by collapsing properties.
+
+### User Manual
+* Filters/Views are selected by double-clicking their corresponding node labels (hold CTRL to select multiple filters).
+* Output ports are selected by double-clicking their corresponding port labels (hold CTRL to select multiple ports).
+* Nodes are collapsed/expanded by right-clicking node labels.
+* The current active output port is set as the input of another filter by double-clicking the corresponding input port label.
+* To toggle the visibility of an output port in the current active view SHIFT + left-click the corresponding output port (CTRL+SHIFT+left-click shows the output port exclusively)
 
 ### Current Limitations
 1. Embedded property widgets that show a double input field are not shown correctly (integer inputs and even the calculator work). It looks like the problem comes from the pqDoubleLineEdit class.
-2. Does not use a graph layout engine to optimize the layout (currently nodes are just created in a row).
-3. Only creates nodes for source/filter proxies.
-4. Can not be used to control the visibility of source/filter proxies in a view.
-5. Display properties are not shown in the nodes.
-6. The pipeline update logic evolves around the apply-button of the default Properties panel, so although proxies are correctly marked as modified, one still has to interact with the properties panel to trigger a pipeline update.
+2. Widgets that can show/hide an interactor in a view are currently not working.
+3. Filters that require multiple inputs open upon creation a selection dialog for the inputs, which is no longer necessary in the node editor.
