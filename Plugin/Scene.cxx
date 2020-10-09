@@ -35,8 +35,9 @@ int NE::Scene::computeLayout(
 #if NE_ENABLE_GRAPHVIZ
 
     // compute dot string
-    qreal maxHeight = 3.0;
+    qreal maxHeight = 0.0;
     qreal maxY = 0;
+    qreal minY = 0;
     std::string dotString;
     {
         std::stringstream nodeString;
@@ -81,6 +82,7 @@ int NE::Scene::computeLayout(
         // NE::log(dotString);
     }
 
+    std::vector<qreal> coords(2*nodes.size(),0.0);
     // compute layout
     {
         Agraph_t *G = agmemread(
@@ -90,25 +92,28 @@ int NE::Scene::computeLayout(
         gvLayout(gvc, G, "dot");
 
         // read layout
+        int i=-2;
         for(auto it : nodes){
-            auto node = it.second;
-            if(!node)
-                continue;
-            auto proxy = it.second->getProxy();
-            if(!proxy)
-                continue;
+            i+=2;
 
-            auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
+            auto proxy = it.second->getProxy();
+
+            auto proxyAsView = dynamic_cast<pqView*>(proxy);
             if(proxyAsView)
                 continue;
 
             Agnode_t *n = agnode(G, const_cast<char *>(std::to_string( NE::getID(proxy) ).data()), 0);
             if(n != nullptr) {
                 auto &coord = ND_coord(n);
-                node->setPos(
-                    coord.x,
-                    coord.y
-                );
+
+                coords[i] = coord.x;
+                coords[i+1] = coord.y;
+
+                if(minY>coord.y)
+                    minY=coord.y;
+
+                if(maxY<coord.y)
+                    maxY=coord.y;
             }
         }
 
@@ -118,24 +123,39 @@ int NE::Scene::computeLayout(
         gvFreeContext(gvc);
     }
 
+    // set positions
+    {
+        int i=-2;
+        for(auto it : nodes){
+            i+=2;
+
+            auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
+            if(proxyAsView)
+                continue;
+
+            it.second->setPos(
+                coords[i],
+                coords[i+1]-minY
+            );
+        }
+    }
+
     // compute initial x position for all views
     std::vector<std::pair<Node*,qreal>> viewXMap;
     for(auto it : nodes){
         auto proxyAsView = dynamic_cast<pqView*>(it.second->getProxy());
-        if(!proxyAsView){
-            auto pos = it.second->pos();
-            if(maxY<pos.y())
-                maxY=pos.y();
+        if(!proxyAsView)
             continue;
-        }
 
         qreal avgX = 0;
         auto edgesIt = edges.find( NE::getID(proxyAsView) );
         if(edgesIt!=edges.end()){
             int nEdges = edgesIt->second.size();
-            for(auto edge: edgesIt->second)
-                avgX += edge->getProducer()->pos().x();
-            avgX /= nEdges;
+            if(nEdges>0){
+                for(auto edge: edgesIt->second)
+                    avgX += edge->getProducer()->pos().x();
+                avgX /= nEdges;
+            }
         }
 
         viewXMap.emplace_back(it.second,avgX);
@@ -151,19 +171,13 @@ int NE::Scene::computeLayout(
     );
 
     // make sure all views have enough space
-    qreal lastX = -1000.0;
+    qreal lastX = 0.0;
     for(auto it: viewXMap){
-        qreal width = it.first->boundingRect().width();
-
+        const qreal width = it.first->boundingRect().width();
         qreal x = it.second;
         if(lastX+width>x)
             x = lastX+width + 10.0;
-
-        it.first->setPos(
-            x,
-            maxY + maxHeight*100.0
-        );
-
+        it.first->setPos( x, maxY + maxHeight*100.0 + 10.0 );
         lastX = x;
     }
 

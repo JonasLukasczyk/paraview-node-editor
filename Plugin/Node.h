@@ -69,8 +69,8 @@ namespace NE {
             /// Update the size of the node to fit its contents.
             int updateSize();
 
-            /// TODO
-            int advanceVerbosity();
+            int getVerbosity();
+            int setVerbosity(int i);
 
             // sets the type of the node (0:normal, 1: selected filter, 2: selected view)
             int setOutlineStyle(int style);

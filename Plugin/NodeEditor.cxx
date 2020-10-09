@@ -48,6 +48,9 @@
 // std include
 #include <iostream>
 
+// TODO
+#include <vtkSMPropertyIterator.h>
+
 NodeEditor::NodeEditor(const QString &title, QWidget *parent)
     : QDockWidget(title, parent)
 {
@@ -112,6 +115,31 @@ int NodeEditor::apply(){
             proxy->render();
         }
     }
+
+    auto activeView = pqActiveObjects::instance().activeView();
+    if(!activeView)
+        return 1;
+
+    auto activeSource = pqActiveObjects::instance().activeSource();
+    if(!activeSource || activeSource->getNumberOfConsumers()>0)
+        return 1;
+
+    auto viewSMProxy = static_cast<vtkSMViewProxy*>(activeView->getProxy());
+    vtkNew<vtkSMParaViewPipelineControllerWithRendering> controller;
+
+    for(int i=0; i<activeSource->getNumberOfOutputPorts(); i++)
+        controller->SetVisibility( static_cast<vtkSMSourceProxy*>(activeSource->getProxy()), i, viewSMProxy, 1 );
+
+    if(auto activeFilter = dynamic_cast<pqPipelineFilter*>(activeSource))
+        for(auto port : activeFilter->getInputs())
+            controller->SetVisibility(
+                static_cast<vtkSMSourceProxy*>(port->getSourceProxy()),
+                port->getPortNumber(),
+                viewSMProxy,
+                0
+            );
+
+    activeView->render();
 
     return 1;
 }
@@ -182,6 +210,12 @@ int NodeEditor::initializeActions(){
         }
     );
 
+    this->actionCollapseAllNodes = new QAction(this);
+    QObject::connect(
+        this->actionCollapseAllNodes, &QAction::triggered,
+        this, &NodeEditor::collapseAllNodes
+    );
+
     return 1;
 }
 
@@ -234,6 +268,8 @@ int NodeEditor::createToolbar(QLayout* layout){
         );
         toolbarLayout->addWidget(checkBox);
     }
+
+    addButton("Collapse All", actionCollapseAllNodes);
 
     // add spacer
     toolbarLayout->addItem( new QSpacerItem(0,0,QSizePolicy::Expanding) );
@@ -472,6 +508,17 @@ int NodeEditor::createNodeForSource(pqPipelineSource* proxy){
                             );
                         } else {
                             activeObjects->setActiveSource( proxy );
+                            // TODO
+                            // auto temp = proxy->getProxy();
+                            // temp->InvokeCommand("ShowWidget");
+
+                            // auto it = temp->NewPropertyIterator();
+                            // it->SetTraverseSubProxies(1);
+                            // it->Begin();
+                            // while(!it->IsAtEnd()){
+                            //     it->GetProxy()->InvokeCommand("ShowWidget");
+                            //     it->Next();
+                            // }
                         }
 
                         return false;
@@ -479,7 +526,7 @@ int NodeEditor::createNodeForSource(pqPipelineSource* proxy){
 
                     // single right click
                     if(eventMDC->button()==2){
-                        node->advanceVerbosity();
+                        node->setVerbosity( node->getVerbosity()+1 );
                         return false;
                     }
 
@@ -595,6 +642,12 @@ int NodeEditor::createNodeForView(pqView* proxy){
                 if(eventMDC->button()==1 && NE::isDoubleClick())
                     pqActiveObjects::instance().setActiveView( proxy );
 
+                // single right click
+                if(eventMDC->button()==2){
+                    node->setVerbosity( node->getVerbosity()+1 );
+                    return false;
+                }
+
                 return false;
             }
         )
@@ -625,8 +678,14 @@ int NodeEditor::removeNode(pqProxy* proxy){
     auto proxyId = NE::getID(proxy);
 
     // delete all incoming edges
-    removeIncomingEdges(proxy);
+    this->removeIncomingEdges(proxy);
     this->edgeRegistry.erase( proxyId );
+
+    // delete all outgoing edges
+    if(auto proxyAsSource = dynamic_cast<pqPipelineSource*>(proxy))
+        for(int p=0; p<proxyAsSource->getNumberOfOutputPorts(); p++)
+            for(int i=0; i<proxyAsSource->getNumberOfConsumers(p); i++)
+                this->removeIncomingEdges(proxyAsSource->getConsumer(p,i));
 
     // delete node
     auto nodeIt = this->nodeRegistry.find( proxyId );
@@ -718,19 +777,27 @@ int NodeEditor::hideAllInActiveView(){
     vtkNew<vtkSMParaViewPipelineControllerWithRendering> controller;
 
     for(auto nodeIt : this->nodeRegistry){
-        auto proxy = static_cast<vtkSMSourceProxy*>(
+        auto proxy = dynamic_cast<vtkSMSourceProxy*>(
             nodeIt.second->getProxy()->getProxy()
         );
-        for(size_t jdx=0; jdx<proxy->GetNumberOfOutputPorts(); jdx++)
-            controller->SetVisibility(
-                proxy,
-                jdx,
-                viewSMProxy,
-                false
-            );
+        if(proxy)
+            for(size_t jdx=0; jdx<proxy->GetNumberOfOutputPorts(); jdx++)
+                controller->SetVisibility(
+                    proxy,
+                    jdx,
+                    viewSMProxy,
+                    false
+                );
     }
 
     view->render();
+
+    return 1;
+};
+
+int NodeEditor::collapseAllNodes(){
+    for(auto nodeIt : this->nodeRegistry)
+        nodeIt.second->setVerbosity(0);
 
     return 1;
 };

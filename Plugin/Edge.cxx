@@ -77,6 +77,7 @@ int NE::Edge::setType(int type){
 
 std::string NE::Edge::toString(){
     std::stringstream ss;
+
     ss
         <<NE::getLabel(this->producer->getProxy())
         <<"["<<this->producerOutputPortIdx<<"]"

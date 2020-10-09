@@ -28,6 +28,8 @@
 #include <pqOutputPort.h>
 #include <vtkSMProxy.h>
 
+#include <vtkSMPropertyGroup.h>
+
 NE::Node::Node(QGraphicsScene* scene, pqProxy* proxy, QGraphicsItem *parent) :
     QObject(),
     QGraphicsItem(parent),
@@ -57,26 +59,7 @@ NE::Node::Node(QGraphicsScene* scene, pqProxy* proxy, QGraphicsItem *parent) :
         this->portContainerHeight = proxyAsSource->getNumberOfOutputPorts()*this->portHeight;
     }
 
-    // create a widget container for property and display widgets
-    {
-        this->widgetContainer = new QWidget;
-        this->widgetContainer->setMinimumWidth(NE::CONSTS::NODE_WIDTH);
-        this->widgetContainer->setMaximumWidth(NE::CONSTS::NODE_WIDTH);
-
-        // install resize event filter
-        this->widgetContainer->installEventFilter(
-            NE::createInterceptor(
-                this->widgetContainer,
-                [=](QObject* object, QEvent* event){
-                    if(event->type()==QEvent::LayoutRequest)
-                        this->updateSize();
-                    return false;
-                }
-            )
-        );
-    }
-
-    // init label
+        // init label
     {
         this->label = new QGraphicsTextItem("",this);
         this->label->setCursor( Qt::PointingHandCursor );
@@ -103,6 +86,25 @@ NE::Node::Node(QGraphicsScene* scene, pqProxy* proxy, QGraphicsItem *parent) :
         nameChangeFunc();
     }
 
+    // create a widget container for property and display widgets
+    {
+        this->widgetContainer = new QWidget;
+        this->widgetContainer->setMinimumWidth(NE::CONSTS::NODE_WIDTH);
+        this->widgetContainer->setMaximumWidth(NE::CONSTS::NODE_WIDTH);
+
+        // install resize event filter
+        this->widgetContainer->installEventFilter(
+            NE::createInterceptor(
+                this->widgetContainer,
+                [=](QObject* object, QEvent* event){
+                    if(event->type()==QEvent::LayoutRequest)
+                        this->updateSize();
+                    return false;
+                }
+            )
+        );
+    }
+
     // initialize property widgets container
     {
         auto containerLayout = new QVBoxLayout;
@@ -116,7 +118,7 @@ NE::Node::Node(QGraphicsScene* scene, pqProxy* proxy, QGraphicsItem *parent) :
         this->proxyProperties->updatePanel();
         containerLayout->addWidget(this->proxyProperties);
 
-        this->advanceVerbosity();
+        this->setVerbosity( NE::CONSTS::NODE_DEFAULT_VERBOSITY );
 
         this->updateSize();
     }
@@ -130,7 +132,7 @@ NE::Node::Node(QGraphicsScene* scene, pqPipelineSource* proxy, QGraphicsItem *pa
     // create ports
     {
         auto br = this->boundingRect();
-        auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH + NE::CONSTS::NODE_BR_PADDING;
+        auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH;
         br.adjust(adjust,adjust,-adjust,-adjust);
 
         if(auto proxyAsFilter = dynamic_cast<pqPipelineFilter*>(proxy)){
@@ -179,7 +181,7 @@ NE::Node::Node(QGraphicsScene* scene, pqView* proxy, QGraphicsItem *parent) :
     Node(scene, (pqProxy*)proxy, parent)
 {
     auto br = this->boundingRect();
-    auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH + NE::CONSTS::NODE_BR_PADDING;
+    auto adjust = 0.5*NE::CONSTS::NODE_BORDER_WIDTH;
     br.adjust(adjust,adjust,-adjust,-adjust);
 
     // create port
@@ -233,10 +235,14 @@ int NE::Node::setBackgroundStyle(int style){
     return 1;
 }
 
-int NE::Node::advanceVerbosity(){
-    this->verbosity++;
+int NE::Node::getVerbosity(){
+    return this->verbosity;
+}
+
+int NE::Node::setVerbosity(int verbosity){
+    this->verbosity = std::max(verbosity,0);
     if(this->verbosity>2)
-        this->verbosity=0;
+        this->verbosity = 0;
 
     if(this->verbosity==0)
         this->proxyProperties->filterWidgets(false, "%%%%%%%%%%%%%%");
@@ -261,19 +267,14 @@ QVariant NE::Node::itemChange(GraphicsItemChange change, const QVariant &value){
 }
 
 QRectF NE::Node::boundingRect() const {
-    auto offset = NE::CONSTS::NODE_BORDER_WIDTH+NE::CONSTS::NODE_PADDING;
+    auto offset = NE::CONSTS::NODE_BORDER_WIDTH;
     auto br = QRectF(
         -offset,
         -offset - this->portContainerHeight - this->labelHeight,
         this->widgetContainerWidth  + 2*offset,
         this->widgetContainerHeight + 2*offset + this->portContainerHeight + this->labelHeight
     );
-    br.adjust(
-        -NE::CONSTS::NODE_BR_PADDING,
-        -NE::CONSTS::NODE_BR_PADDING,
-        NE::CONSTS::NODE_BR_PADDING,
-        NE::CONSTS::NODE_BR_PADDING
-    );
+    br.adjust(0,0,0,NE::CONSTS::NODE_BORDER_RADIUS);
 
     return br;
 }
@@ -282,10 +283,10 @@ void NE::Node::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, 
     auto palette = QApplication::palette();
 
     QPainterPath path;
-    int offset = 0.5*NE::CONSTS::NODE_BORDER_WIDTH + NE::CONSTS::NODE_BR_PADDING;
+    int offset = 0.5*NE::CONSTS::NODE_BORDER_WIDTH;
     auto br = this->boundingRect();
     br.adjust(offset,offset,-offset,-offset);
-    path.addRoundedRect(br, 10, 10);
+    path.addRoundedRect(br, NE::CONSTS::NODE_BORDER_RADIUS, NE::CONSTS::NODE_BORDER_RADIUS);
 
     QPen pen(
         this->outlineStyle==0

@@ -21,11 +21,12 @@
     #include <unistd.h>
 #endif
 
-bool   NE::CONSTS::DEBUG = true;
+// bool   NE::CONSTS::DEBUG = true;
+bool   NE::CONSTS::DEBUG = false;
 int    NE::CONSTS::NODE_WIDTH = 300;
-int    NE::CONSTS::NODE_PADDING = 0;
 int    NE::CONSTS::NODE_BORDER_WIDTH = 4;
-int    NE::CONSTS::NODE_BR_PADDING = 0;
+int    NE::CONSTS::NODE_BORDER_RADIUS = 6;
+int    NE::CONSTS::NODE_DEFAULT_VERBOSITY = 1;
 int    NE::CONSTS::EDGE_WIDTH = 5;
 QColor NE::CONSTS::COLOR_ORANGE = QColor("#e9763d");
 QColor NE::CONSTS::COLOR_GREEN  = QColor("#049a0a");
@@ -39,15 +40,19 @@ void NE::log(std::string content, bool force){
 };
 
 int NE::getID(pqProxy* proxy){
-    return proxy
-        ? proxy->getProxy()->GetGlobalID()
-        : -1;
+    if(proxy==nullptr)
+        return -1;
+    auto smProxy = proxy->getProxy();
+    if(smProxy==nullptr)
+        return -1;
+    return smProxy->GetGlobalID();
 };
 
 std::string NE::getLabel(pqProxy* proxy){
-    return proxy
-        ? proxy->getSMName().toStdString() + "<" + std::to_string(NE::getID(proxy)) + ">"
-        : "PROXY IS NULL";
+    if(!proxy)
+        return "PROXY IS NULL";
+
+    return proxy->getSMName().toStdString() + "<" + std::to_string(NE::getID(proxy)) + ">";
 };
 
 double NE::getTimeStamp(){

@@ -17,7 +17,9 @@ namespace NE {
         extern int    NODE_WIDTH;
         extern int    NODE_PADDING;
         extern int    NODE_BORDER_WIDTH;
+        extern int    NODE_BORDER_RADIUS;
         extern int    NODE_BR_PADDING;
+        extern int    NODE_DEFAULT_VERBOSITY;
         extern int    EDGE_WIDTH;
         extern QColor COLOR_ORANGE;
         extern QColor COLOR_GREEN;

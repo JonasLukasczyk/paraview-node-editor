@@ -63,18 +63,21 @@ class NodeEditor : public QDockWidget {
         int toggleInActiveView(pqOutputPort* port);
         int hideAllInActiveView();
 
+        int collapseAllNodes();
+
     private:
         NE::Scene* scene;
         NE::View* view;
 
-        bool autoUpdateLayout{false};
+        bool autoUpdateLayout{true};
         QAction* actionZoom;
         QAction* actionLayout;
         QAction* actionApply;
         QAction* actionReset;
         QAction* actionAutoLayout;
+        QAction* actionCollapseAllNodes;
 
-        /// The node registry stores a node for each proxy (currently ony source/filter proxies).
+        /// The node registry stores a node for each source/filter/view proxy
         /// The key is the global identifier of the node proxy.
         std::unordered_map<int,NE::Node*> nodeRegistry;
 
