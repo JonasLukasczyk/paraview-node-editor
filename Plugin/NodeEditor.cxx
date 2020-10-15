@@ -324,7 +324,8 @@ int NodeEditor::attachServerManagerListeners(){
 
     // edge removed
     this->connect(
-        smm, &pqServerManagerModel::connectionRemoved,
+        smm,
+        static_cast<void (pqServerManagerModel::*)(pqPipelineSource*,pqPipelineSource*,int)>(&pqServerManagerModel::connectionRemoved),
         this, [=](pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort){
             return this->updatePipelineEdges(consumer);
         }
@@ -332,7 +333,8 @@ int NodeEditor::attachServerManagerListeners(){
 
     // edge creation
     this->connect(
-        smm, &pqServerManagerModel::connectionAdded,
+        smm,
+        static_cast<void (pqServerManagerModel::*)(pqPipelineSource*,pqPipelineSource*,int)>(&pqServerManagerModel::connectionAdded),
         this, [=](pqPipelineSource *source, pqPipelineSource *consumer, int srcOutputPort){
             return this->updatePipelineEdges(consumer);
         }
@@ -373,11 +375,14 @@ int NodeEditor::attachServerManagerListeners(){
 int NodeEditor::updateActiveView(){
     NE::log("Update Active View");
 
+    auto view = pqActiveObjects::instance().activeView();
+
     for(auto it : this->nodeRegistry)
         if(dynamic_cast<pqView*>(it.second->getProxy()))
             it.second->setOutlineStyle(0);
+        else
+            it.second->getProxyProperties()->setView(view);
 
-    auto view = pqActiveObjects::instance().activeView();
     if(!view)
         return 1;
 
