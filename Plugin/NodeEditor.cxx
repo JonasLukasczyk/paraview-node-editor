@@ -714,29 +714,37 @@ int NodeEditor::setActivePortAsInput(pqPipelineSource *consumer, int idx){
     if(!consumerAsFilter)
         return 1;
 
-    auto activeObjects = &pqActiveObjects::instance();
-    auto port = activeObjects->activePort();
-    if(!port)
-        return 1;
-
     BEGIN_UNDO_SET(QString("Change Input for %1").arg(consumerAsFilter->getSMName()));
     SM_SCOPED_TRACE(PropertiesModified).arg("proxy", consumerAsFilter->getProxy());
 
     std::vector<vtkSMProxy*> inputPtrs;
     std::vector<unsigned int> inputPorts;
 
-    inputPtrs.push_back(port->getSource()->getProxy());
-    inputPorts.push_back(port->getPortNumber());
+    auto activeObjects = &pqActiveObjects::instance();
+    auto selection = activeObjects->selection();
+
+    for(auto item : selection){
+      auto itemAsSource = dynamic_cast<pqPipelineSource*>(item);
+      auto itemAsPort = dynamic_cast<pqOutputPort*>(item);
+      if(itemAsPort){
+        inputPtrs.push_back(itemAsPort->getSource()->getProxy());
+        inputPorts.push_back(itemAsPort->getPortNumber());
+      } else if(itemAsSource) {
+        inputPtrs.push_back(itemAsSource->getProxy());
+        inputPorts.push_back(0);
+      }
+    }
 
     auto iPortName = consumerAsFilter->getInputPortName(idx);
     auto ip = vtkSMInputProperty::SafeDownCast(
       consumerAsFilter->getProxy()->GetProperty(iPortName.toLocal8Bit().data())
     );
-    ip->SetProxies(
-        static_cast<unsigned int>(inputPtrs.size()),
-        &inputPtrs[0],
-        &inputPorts[0]
-    );
+    if(inputPtrs.size()>0)
+      ip->SetProxies(
+          static_cast<unsigned int>(inputPtrs.size()),
+          inputPtrs.data(),
+          inputPorts.data()
+      );
 
     END_UNDO_SET();
 
