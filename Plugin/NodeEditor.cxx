@@ -68,7 +68,7 @@ NodeEditor::NodeEditor(const QString &title, QWidget *parent)
         this
     );
     this->view->setDragMode( QGraphicsView::ScrollHandDrag );
-    this->view->setSceneRect(-10000,-10000,20000,20000);
+    this->view->setSceneRect(-10000,-10000,30000,30000);
     layout->addWidget(this->view);
 
     this->initializeActions();
@@ -552,8 +552,9 @@ int NodeEditor::createNodeForSource(pqPipelineSource* proxy){
                         if(event->type()!=QEvent::GraphicsSceneMousePress)
                             return false;
 
+                        auto eventMDC = static_cast<QGraphicsSceneMouseEvent*>(event);
                         if(NE::isDoubleClick())
-                            this->setActivePortAsInput(proxy, idx);
+                            this->setInput(proxy, idx, eventMDC->modifiers()==Qt::ControlModifier);
 
                         return false;
                     }
@@ -707,8 +708,11 @@ int NodeEditor::removeNode(pqProxy* proxy){
     return 1;
 };
 
-int NodeEditor::setActivePortAsInput(pqPipelineSource *consumer, int idx){
-    NE::log("Set Active Port as Input: "+NE::getLabel(consumer));
+int NodeEditor::setInput(pqPipelineSource *consumer, int idx, bool clear){
+    if(clear)
+      NE::log("Clear Input: "+NE::getLabel(consumer)+"["+std::to_string(idx)+"]");
+    else
+      NE::log("Set Active Ports as Input: "+NE::getLabel(consumer)+"["+std::to_string(idx)+"]");
 
     auto consumerAsFilter = dynamic_cast<pqPipelineFilter*>(consumer);
     if(!consumerAsFilter)
@@ -720,18 +724,20 @@ int NodeEditor::setActivePortAsInput(pqPipelineSource *consumer, int idx){
     std::vector<vtkSMProxy*> inputPtrs;
     std::vector<unsigned int> inputPorts;
 
-    auto activeObjects = &pqActiveObjects::instance();
-    auto selection = activeObjects->selection();
+    if(!clear){
+      auto activeObjects = &pqActiveObjects::instance();
+      auto selection = activeObjects->selection();
 
-    for(auto item : selection){
-      auto itemAsSource = dynamic_cast<pqPipelineSource*>(item);
-      auto itemAsPort = dynamic_cast<pqOutputPort*>(item);
-      if(itemAsPort){
-        inputPtrs.push_back(itemAsPort->getSource()->getProxy());
-        inputPorts.push_back(itemAsPort->getPortNumber());
-      } else if(itemAsSource) {
-        inputPtrs.push_back(itemAsSource->getProxy());
-        inputPorts.push_back(0);
+      for(auto item : selection){
+        auto itemAsSource = dynamic_cast<pqPipelineSource*>(item);
+        auto itemAsPort = dynamic_cast<pqOutputPort*>(item);
+        if(itemAsPort){
+          inputPtrs.push_back(itemAsPort->getSource()->getProxy());
+          inputPorts.push_back(itemAsPort->getPortNumber());
+        } else if(itemAsSource) {
+          inputPtrs.push_back(itemAsSource->getProxy());
+          inputPorts.push_back(0);
+        }
       }
     }
 
@@ -739,12 +745,11 @@ int NodeEditor::setActivePortAsInput(pqPipelineSource *consumer, int idx){
     auto ip = vtkSMInputProperty::SafeDownCast(
       consumerAsFilter->getProxy()->GetProperty(iPortName.toLocal8Bit().data())
     );
-    if(inputPtrs.size()>0)
-      ip->SetProxies(
-          static_cast<unsigned int>(inputPtrs.size()),
-          inputPtrs.data(),
-          inputPorts.data()
-      );
+    ip->SetProxies(
+        static_cast<unsigned int>(inputPtrs.size()),
+        inputPtrs.data(),
+        inputPorts.data()
+    );
 
     END_UNDO_SET();
 

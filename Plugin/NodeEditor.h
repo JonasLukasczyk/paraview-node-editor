@@ -51,7 +51,7 @@ class NodeEditor : public QDockWidget {
         int createNodeForView(pqView* proxy);
         int removeNode(pqProxy* proxy);
 
-        int setActivePortAsInput(pqPipelineSource *consumer, int idx);
+        int setInput(pqPipelineSource *consumer, int idx, bool clear);
 
         int updateActiveView();
         int updateActiveSourcesAndPorts();

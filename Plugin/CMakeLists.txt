@@ -98,7 +98,6 @@ target_link_libraries(NodeEditor
     ${GRAPHVIZ_GVC_LIBRARY}
     ${GRAPHVIZ_CGRAPH_LIBRARY}
     ${GRAPHVIZ_PATHPLAN_LIBRARY}
-    ParaView::pqApplicationComponents
     ParaView::RemotingViews
     Qt5::Widgets
 )

@@ -7,7 +7,7 @@ This repository contains a node editor plugin for ParaView. So far it is self-co
 
 ### Installation
 To install the plugin:
-1. Build ParaView v5.8.0
+1. Build ParaView v5.8.0 or above
 2. Build NodeEditor in seperate folder (eventually you have to explicitly set ParaView_DIR with cmake)
 3. Load the NodeEdior PlugIn in ParaView via "Tools/Manage PlugIns/Load New" and select NodeEditor.so located in paraview-node-editor/build/lib/paraview-5.8/plugins/NodeEditor
 4. Add the NodeEditor to a dockable panel (it should be listed in the same menu as the "Pipeline Browser" and the "Properties" panel).
@@ -22,10 +22,11 @@ To install the plugin:
 
 ### User Manual
 * Filters/Views are selected by double-clicking their corresponding node labels (hold CTRL to select multiple filters).
-* Output ports are selected by double-clicking their corresponding port labels (hold CTRL to select multiple ports).
+* Output ports are selected by double-clicking their corresponding port labels (hold CTRL to select multiple output ports).
 * Nodes are collapsed/expanded by right-clicking node labels.
-* The current active output port is set as the input of another filter by double-clicking the corresponding input port label.
-* To toggle the visibility of an output port in the current active view SHIFT + left-click the corresponding output port (CTRL+SHIFT+left-click shows the output port exclusively)
+* Selected output ports are set as the input of another filter by double-clicking the corresponding input port label.
+* To remove all input connections CTRL+double-click on an input port.
+* To toggle the visibility of an output port in the current active view SHIFT+left-click the corresponding output port (CTRL+SHIFT+left-click shows the output port exclusively)
 
 ### Current Limitations
 1. Embedded property widgets that show a double input field are not shown correctly (integer inputs and even the calculator work). It looks like the problem comes from the pqDoubleLineEdit class.
