@@ -1,3 +1,7 @@
+# DEPRECATED
+Please note that the node editor is now officially part of the paraview source code and this repository is no longer being maintained.
+
+
 # paraview-node-editor
 
 ![screenshot](https://raw.githubusercontent.com/JonasLukasczyk/paraview-node-editor/master/screenshot.jpg "Screenshot of ParaView Node Editor")
